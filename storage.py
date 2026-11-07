@@ -12,7 +12,8 @@ from psycopg.types.json import Jsonb
 from lottery import DrawError
 
 ROOT = Path(__file__).parent
-load_dotenv(ROOT / ".env")
+if os.getenv("RENDER") != "true":
+    load_dotenv(ROOT / ".env")
 
 
 class PostgresStore:
@@ -20,7 +21,7 @@ class PostgresStore:
     def connection(self):
         url = os.getenv("DATABASE_URL", "")
         if not url:
-            raise DrawError("缺少 DATABASE_URL，请在 .env 中设置 Supabase PostgreSQL 连接串。", 503)
+            raise DrawError("缺少 DATABASE_URL：请在 Render 的 Environment 中设置 Supabase PostgreSQL 连接串；本机运行可写入 .env。", 503)
         try:
             with psycopg.connect(url, sslmode="require", connect_timeout=8,
                                  prepare_threshold=None, options="-c statement_timeout=10000") as conn:

@@ -45,6 +45,10 @@ python -m pip --python .venv/Scripts/python.exe install -r requirements.txt
 
 Render 会提供 `PORT`，程序自动监听 `0.0.0.0:$PORT`，不需要填写 `HOST` 或 `PORT`。`.python-version` 选择 Python 3.14 系列。管理员访问保护覆盖页面、静态文件及抽奖 API；只有不含业务数据的 `/healthz` 向 Render 的健康检查开放。
 
+Render 上完全从 **Environment** 读取配置，不加载本机 `.env`，也不需要本机的 `instance/` 密钥文件。`start.ps1` 仅供 Windows 本机使用；在 Render 使用上表的 `python app.py`，不要使用 PowerShell 启动文件或 Flask 的开发服务器。Render 会固定使用 `0.0.0.0`，忽略本机的 `HOST=127.0.0.1` 设置。
+
+如果 GitHub 分支仍只有最初的 `first commit`，请先把最新部署修改推送到 Render 所绑定的分支，再在 Render 选择 **Manual Deploy → Deploy latest commit**。仅修改本机文件不会更新远端部署。
+
 数据库表已在当前 Supabase 建立。如果之后换成新数据库，需在 Supabase SQL Editor 执行 `schema.sql`，或设置连接串后执行 `python manage.py init-db`。如果 Render 无法连接 `db.…supabase.co` 的直连地址，改用 Supabase **Connect → Session pooler** 的连接串；密码中的特殊字符需 URL 编码。
 
 正式抽奖持久保存在 Supabase；试玩保存在单个 Python 进程内存中，因此当前配置使用单实例 Waitress。Render 重启、休眠或重新部署后，试玩会消失；正式抽奖可从历史记录继续。不要把启动命令改成多个 worker，也不要扩到多个实例，否则试玩请求可能落到不同内存存储。

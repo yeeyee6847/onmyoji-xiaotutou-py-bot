@@ -18,16 +18,19 @@ def create_app(store=None):
         for name in ("FLASK_SECRET_KEY", "ADMIN_PASSWORD"):
             if not os.getenv(name):
                 raise RuntimeError(f"请在 Render 的 Environment 中设置 {name}。")
-    instance = Path(app.instance_path)
-    instance.mkdir(exist_ok=True)
-    secret_path = instance / ".secret_key"
-    if not os.getenv("FLASK_SECRET_KEY") and not secret_path.exists():
-        try:
-            with secret_path.open("x", encoding="utf-8") as f:
-                f.write(secrets.token_hex(32))
-        except FileExistsError:
-            pass
-    app.config.update(SECRET_KEY=os.getenv("FLASK_SECRET_KEY") or secret_path.read_text(),
+    secret_key = os.getenv("FLASK_SECRET_KEY")
+    if not secret_key:
+        instance = Path(app.instance_path)
+        instance.mkdir(exist_ok=True)
+        secret_path = instance / ".secret_key"
+        if not secret_path.exists():
+            try:
+                with secret_path.open("x", encoding="utf-8") as f:
+                    f.write(secrets.token_hex(32))
+            except FileExistsError:
+                pass
+        secret_key = secret_path.read_text(encoding="utf-8")
+    app.config.update(SECRET_KEY=secret_key,
                       MAX_CONTENT_LENGTH=128 * 1024, SESSION_COOKIE_HTTPONLY=True,
                       SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_SECURE=on_render)
     database = store if store is not None else PostgresStore()
@@ -142,7 +145,7 @@ app = create_app()
 
 def server_address():
     on_render = os.getenv("RENDER") == "true"
-    host = os.getenv("HOST") or ("0.0.0.0" if on_render else "127.0.0.1")
+    host = "0.0.0.0" if on_render else os.getenv("HOST") or "127.0.0.1"
     port = int(os.getenv("PORT") or ("10000" if on_render else "5000"))
     return host, port
 

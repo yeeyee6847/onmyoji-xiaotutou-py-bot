@@ -1,6 +1,8 @@
 import base64
 import os
+import runpy
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from app import create_app, server_address
@@ -48,6 +50,21 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual(server_address(), ("0.0.0.0", 10000))
         with patch.dict(os.environ, {"RENDER": "", "HOST": "", "PORT": ""}):
             self.assertEqual(server_address(), ("127.0.0.1", 5000))
+
+    def test_render_ignores_local_host_override(self):
+        with patch.dict(os.environ, {"RENDER": "true", "HOST": "127.0.0.1", "PORT": "12345"}):
+            self.assertEqual(server_address(), ("0.0.0.0", 12345))
+
+    def test_render_starts_without_local_secret_files(self):
+        with patch.dict(os.environ, {"RENDER": "true", "FLASK_SECRET_KEY": "test-session-key", "ADMIN_PASSWORD": "test-password"}):
+            with patch.object(Path, "mkdir", side_effect=PermissionError("No local storage")):
+                app = create_app()
+        self.assertEqual(app.test_client().get("/healthz").status_code, 200)
+
+    def test_render_does_not_load_local_dotenv(self):
+        with patch.dict(os.environ, {"RENDER": "true"}), patch("dotenv.load_dotenv") as load:
+            runpy.run_path(str(Path(__file__).resolve().parents[1] / "storage.py"))
+        load.assert_not_called()
 
 
 if __name__ == "__main__":
