@@ -1,8 +1,41 @@
-# 抽奖小屋
+# 抽奖小屋 / 结缘帖原型
 
 Python + Flask + Supabase PostgreSQL 抽奖网站，支持本机运行和 Render 部署，界面使用繁体中文。后端通过环境变量 `DATABASE_URL` 连接 Supabase，本机可使用 `.env`；浏览器不会收到数据库凭证，也不会读取 Discord token。
 
-## 启动
+## 碎片交换原型（独立 Mock 功能）
+
+启动服务后打开 **http://127.0.0.1:5000/shards**，或从抽奖页面点击「碎片交换」。本功能不访问 Supabase、不运行建表脚本，也不改动抽奖记录。
+
+- 一般用户：上传游戏原始碎片长图、查看逐格裁切和 OCR 原文、选择正确式神、修正数量、逐项确认或排除，最后导出 JSON。
+- Admin：使用右上角的**演示身分**切换后，可新增、编辑、删除式神。资料包含名字、头像、SSR / SP / UR / 联动分类，以及用于繁简体和识别误字的别名。
+- 图鉴暂存到 `instance/shards/catalog.json`，头像在 `instance/shards/portraits/`；这些路径已被 Git 忽略。普通用户的上传结果只在当前服务器进程中暂存，重启会丢失，且不同浏览器会话互相隔离。
+- 演示身分切换是 Mock 流程，不是正式账号和权限系统。预置图鉴只是部分示例；文字占位不是实际式神肖像，可由 Admin 上传替换。
+
+图片处理基础依赖已加入 `requirements.txt`。要启用本地中文 OCR，安装：
+
+```powershell
+python -m pip --python .venv/Scripts/python.exe install -r requirements-ocr.txt
+```
+
+处理流程为 OpenCV 定位红色/金色卡框 → 分别裁切名字和数量 → 放大后调用 RapidOCR（ONNX Runtime CPU、PP-OCRv4 mobile 识别模型）→ 用图鉴名字和别名匹配。第一次识别会从 RapidAI 的模型源下载识别模型；输入图片始终在当前 Python 服务器本地处理，不会上传给外部 OCR 服务。
+
+每条结果保留原图裁切、OCR 原文及分数。不精确匹配时只提供候选，不自动认定名字；不确定的数量留空，不把 `I3` 或 `1?` 擅自改成数字。所有记录最初都需要人工确认。自动定位不准时，可在上传页展开「调整切格」设置行列和百分比范围。
+
+「载入演示结果」只生成固定演示资料，页面会明确标记，不能当作真实 OCR 结果。没有 OCR 依赖或模型下载失败时仍提供切格和人工核对，页面会提示原因。导出要求所有保留条目都已确认；同一式神重复出现会阻止导出，不会擅自累计数量。
+
+这次尚未用聊天附件的原始文件测量真实识别准确率。游戏名字很小且带描边，数量叠在肖像上，原图分辨率、切格范围和图鉴完整程度都影响结果。请在新页面上传游戏导出的原图进行逐项核对。
+
+本机真实 OCR 合成探测读对了清晰的「不知火」「花鸟卷」和 `1307`，但单独的 `0` 曾读为字母 `o`（低分），会留待人工确认；这不是游戏截图的准确率评测。可运行 `python tests/ocr_probe.py` 复测，本机探测脚本使用 Windows 的微软雅黑字体。
+
+`shards/vision.py` 和 `shards/catalog.py` 不依赖 Flask 或 Discord：之后 Discord bot 读取附件 bytes 后，可以在线程里调用 `load_image(bytes)` 和 `inspect_image(image, catalog)` 复用同一识别流程。当前没有启用真实交换撮合或库存入库。
+
+Render 当前仍以基础依赖构建；要在 Render 启用 OCR，可将 Build Command 改为 `pip install -r requirements-ocr.txt`，启动命令保持 `python app.py`。模型推理的内存与首次下载时间需要另行验证，现阶段优先用于本机原型测试。
+
+参考：[RapidOCR 官方使用文档](https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/)。
+
+碎片模块测试：`.venv/Scripts/python.exe -m unittest discover -s tests -p test_shards.py -v`。测试将数据库对象替换为禁止访问的实现；OpenCV 分格使用合成的五列卡框，Web 上传流程使用明确标记的测试识别器。完整浏览器测试先启动 `tests/shards_server.py`，再运行 `tests/browser_shards.py`，测试图鉴写入独立临时目录并在结束后清理。
+
+## 本机启动
 
 第一次安装（Windows PowerShell）：
 

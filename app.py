@@ -10,7 +10,7 @@ from lottery import DrawError, new_draw, public_state, reveal_card, select_card,
 from storage import PostgresStore, PracticeStore
 
 
-def create_app(store=None):
+def create_app(store=None, shard_options=None):
     app = Flask(__name__)
     on_render = os.getenv("RENDER") == "true"
     if on_render and not os.getenv("FLASK_SECRET_KEY"):
@@ -127,6 +127,8 @@ def create_app(store=None):
             state = database.mutate(draw_id, operation)
         return jsonify(public_state(state))
 
+    from shards.web import create_blueprint
+    app.register_blueprint(create_blueprint(**(shard_options or {})))
     return app
 
 
