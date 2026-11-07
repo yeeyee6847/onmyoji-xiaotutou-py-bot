@@ -1,6 +1,6 @@
 # 抽奖小屋
 
-Python + Flask + Supabase PostgreSQL 的本地抽奖网站，界面使用繁体中文。后端通过 `.env` 中已有的 `DATABASE_URL` 连接 Supabase；浏览器不会收到数据库凭证，也不会读取 Discord token。
+Python + Flask + Supabase PostgreSQL 抽奖网站，支持本机运行和 Render 部署，界面使用繁体中文。后端通过环境变量 `DATABASE_URL` 连接 Supabase，本机可使用 `.env`；浏览器不会收到数据库凭证，也不会读取 Discord token。
 
 ## 启动
 
@@ -20,7 +20,36 @@ python -m pip --python .venv/Scripts/python.exe install -r requirements.txt
 
 也可以运行 `./start.ps1`。打开 **http://127.0.0.1:5000**。默认只监听本机，使用 Waitress；按 Ctrl+C 停止。
 
-如果数据库未连接，页面仍可试玩；正式抽奖会提示错误，不会假装保存成功。当前版本是单个操作者在本机使用的工作台，尚未提供登录或远程管理员权限。对外部署和 Discord 接入留待后续版本。
+如果数据库未连接，页面仍可试玩；正式抽奖会提示错误，不会假装保存成功。当前版本是单个操作者的工作台，Render 部署使用管理员密码登录；Discord 接入留待后续版本。
+
+## Render 部署
+
+仓库内提供 `render.yaml`。在 Render 选择 **New → Blueprint**，连接此 GitHub 仓库，按提示填写 `DATABASE_URL` 即可使用现有 Supabase 数据库。Blueprint 会生成 `FLASK_SECRET_KEY` 和 `ADMIN_PASSWORD`，实际值在服务的 **Environment** 中查看。
+
+如果选择 **New → Web Service** 手动创建，使用以下设置：
+
+| 项目 | 值 |
+| --- | --- |
+| Language | Python 3 |
+| Branch | main |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `python app.py` |
+| Health Check Path | `/healthz` |
+| Instances | 1 |
+
+手动部署需要在 **Environment** 设置：
+
+- `DATABASE_URL`：从本机 `.env` 复制对应值。不要上传整个 `.env` 或 Discord token。
+- `FLASK_SECRET_KEY`：固定的随机长密钥，用来保持会话。不要在每次部署时更换。
+- `ADMIN_PASSWORD`：你自己设置的管理员长密码。打开网站时用户名填 `admin`，密码填此值。
+
+Render 会提供 `PORT`，程序自动监听 `0.0.0.0:$PORT`，不需要填写 `HOST` 或 `PORT`。`.python-version` 选择 Python 3.14 系列。管理员访问保护覆盖页面、静态文件及抽奖 API；只有不含业务数据的 `/healthz` 向 Render 的健康检查开放。
+
+数据库表已在当前 Supabase 建立。如果之后换成新数据库，需在 Supabase SQL Editor 执行 `schema.sql`，或设置连接串后执行 `python manage.py init-db`。如果 Render 无法连接 `db.…supabase.co` 的直连地址，改用 Supabase **Connect → Session pooler** 的连接串；密码中的特殊字符需 URL 编码。
+
+正式抽奖持久保存在 Supabase；试玩保存在单个 Python 进程内存中，因此当前配置使用单实例 Waitress。Render 重启、休眠或重新部署后，试玩会消失；正式抽奖可从历史记录继续。不要把启动命令改成多个 worker，也不要扩到多个实例，否则试玩请求可能落到不同内存存储。
+
+部署配置依据：[Render Flask 部署](https://render.com/docs/deploy-flask)、[端口要求](https://render.com/docs/web-services#port-binding)、[Blueprint 配置](https://render.com/docs/blueprint-spec)、[Python 版本](https://render.com/docs/python-version)。
 
 ## 玩法
 
