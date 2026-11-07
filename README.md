@@ -20,11 +20,11 @@ python -m pip --python .venv/Scripts/python.exe install -r requirements.txt
 
 也可以运行 `./start.ps1`。打开 **http://127.0.0.1:5000**。默认只监听本机，使用 Waitress；按 Ctrl+C 停止。
 
-如果数据库未连接，页面仍可试玩；正式抽奖会提示错误，不会假装保存成功。当前版本是单个操作者的工作台，Render 部署使用管理员密码登录；Discord 接入留待后续版本。
+如果数据库未连接，页面仍可试玩；正式抽奖会提示错误，不会假装保存成功。网站无需登录，知道链接的人都可以进入、创建和操作抽奖、查看正式抽奖记录。Discord 接入留待后续版本。
 
 ## Render 部署
 
-仓库内提供 `render.yaml`。在 Render 选择 **New → Blueprint**，连接此 GitHub 仓库，按提示填写 `DATABASE_URL` 即可使用现有 Supabase 数据库。Blueprint 会生成 `FLASK_SECRET_KEY` 和 `ADMIN_PASSWORD`，实际值在服务的 **Environment** 中查看。
+仓库内提供 `render.yaml`。在 Render 选择 **New → Blueprint**，连接此 GitHub 仓库，按提示填写 `DATABASE_URL` 即可使用现有 Supabase 数据库。Blueprint 会生成 `FLASK_SECRET_KEY`，实际值在服务的 **Environment** 中查看。
 
 如果选择 **New → Web Service** 手动创建，使用以下设置：
 
@@ -41,9 +41,10 @@ python -m pip --python .venv/Scripts/python.exe install -r requirements.txt
 
 - `DATABASE_URL`：从本机 `.env` 复制对应值。不要上传整个 `.env` 或 Discord token。
 - `FLASK_SECRET_KEY`：固定的随机长密钥，用来保持会话。不要在每次部署时更换。
-- `ADMIN_PASSWORD`：你自己设置的管理员长密码。打开网站时用户名填 `admin`，密码填此值。
 
-Render 会提供 `PORT`，程序自动监听 `0.0.0.0:$PORT`，不需要填写 `HOST` 或 `PORT`。`.python-version` 选择 Python 3.14 系列。管理员访问保护覆盖页面、静态文件及抽奖 API；只有不含业务数据的 `/healthz` 向 Render 的健康检查开放。
+Render 会提供 `PORT`，程序自动监听 `0.0.0.0:$PORT`，不需要填写 `HOST` 或 `PORT`。`.python-version` 选择 Python 3.14 系列。页面和抽奖功能直接开放，无需账号密码。`FLASK_SECRET_KEY` 用于浏览器会话及 CSRF 校验，不是登录密码。`/healthz` 用于 Render 的健康检查，不含业务数据。
+
+如果旧部署曾设置 `ADMIN_PASSWORD`，可以从 Render 的 Environment 删除；新版程序不再读取此设置，保留旧变量也不会弹出登录框。
 
 Render 上完全从 **Environment** 读取配置，不加载本机 `.env`，也不需要本机的 `instance/` 密钥文件。`start.ps1` 仅供 Windows 本机使用；在 Render 使用上表的 `python app.py`，不要使用 PowerShell 启动文件或 Flask 的开发服务器。Render 会固定使用 `0.0.0.0`，忽略本机的 `HOST=127.0.0.1` 设置。
 

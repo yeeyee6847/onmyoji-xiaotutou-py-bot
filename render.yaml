@@ -12,7 +12,5 @@ services:
         sync: false
       - key: FLASK_SECRET_KEY
         generateValue: true
-      - key: ADMIN_PASSWORD
-        generateValue: true
       - key: PYTHONUNBUFFERED
         value: "1"

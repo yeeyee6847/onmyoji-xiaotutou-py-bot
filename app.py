@@ -13,11 +13,8 @@ from storage import PostgresStore, PracticeStore
 def create_app(store=None):
     app = Flask(__name__)
     on_render = os.getenv("RENDER") == "true"
-    admin_password = os.getenv("ADMIN_PASSWORD", "")
-    if on_render:
-        for name in ("FLASK_SECRET_KEY", "ADMIN_PASSWORD"):
-            if not os.getenv(name):
-                raise RuntimeError(f"请在 Render 的 Environment 中设置 {name}。")
+    if on_render and not os.getenv("FLASK_SECRET_KEY"):
+        raise RuntimeError("请在 Render 的 Environment 中设置 FLASK_SECRET_KEY。")
     secret_key = os.getenv("FLASK_SECRET_KEY")
     if not secret_key:
         instance = Path(app.instance_path)
@@ -40,15 +37,6 @@ def create_app(store=None):
     def protect():
         if request.path == "/healthz":
             return None
-        if admin_password:
-            auth = request.authorization
-            authorized = (auth is not None and auth.type == "basic"
-                          and secrets.compare_digest((auth.username or "").encode("utf-8"), b"admin")
-                          and secrets.compare_digest((auth.password or "").encode("utf-8"), admin_password.encode("utf-8")))
-            if not authorized:
-                return app.response_class("请使用管理员账号登录。", status=401,
-                    headers={"WWW-Authenticate": 'Basic realm="Lucky House", charset="UTF-8"'},
-                    content_type="text/plain; charset=utf-8")
         if "csrf" not in session:
             session["csrf"] = secrets.token_hex(24)
         if request.method in ("POST", "PUT", "PATCH", "DELETE"):
