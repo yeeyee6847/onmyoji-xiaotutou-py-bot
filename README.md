@@ -17,7 +17,7 @@ Python + Flask + Supabase PostgreSQL 抽奖网站，支持本机运行和 Render
 python -m pip --python .venv/Scripts/python.exe install -r requirements-ocr.txt
 ```
 
-处理流程为 OpenCV 定位红色/金色卡框 → 分别裁切名字和数量 → 放大后调用 RapidOCR（ONNX Runtime CPU、PP-OCRv4 mobile 识别模型）→ 用图鉴名字和别名匹配。第一次识别会从 RapidAI 的模型源下载识别模型；输入图片始终在当前 Python 服务器本地处理，不会上传给外部 OCR 服务。
+处理流程为 OpenCV 定位红色/金色卡框 → 分别裁切名字和数量 → 放大后调用 RapidOCR（ONNX Runtime CPU、PP-OCRv4 mobile 识别模型）→ 用图鉴名字和别名匹配。本机第一次识别会从 RapidAI 的模型源下载识别模型，Render 则在构建时准备模型；输入图片始终在当前 Python 服务器处理，不会上传给外部 OCR 服务。
 
 每条结果保留原图裁切、OCR 原文及分数。不精确匹配时只提供候选，不自动认定名字；不确定的数量留空，不把 `I3` 或 `1?` 擅自改成数字。所有记录最初都需要人工确认。自动定位不准时，可在上传页展开「调整切格」设置行列和百分比范围。
 
@@ -29,7 +29,11 @@ python -m pip --python .venv/Scripts/python.exe install -r requirements-ocr.txt
 
 `shards/vision.py` 和 `shards/catalog.py` 不依赖 Flask 或 Discord：之后 Discord bot 读取附件 bytes 后，可以在线程里调用 `load_image(bytes)` 和 `inspect_image(image, catalog)` 复用同一识别流程。当前没有启用真实交换撮合或库存入库。
 
-Render 当前仍以基础依赖构建；要在 Render 启用 OCR，可将 Build Command 改为 `pip install -r requirements-ocr.txt`，启动命令保持 `python app.py`。模型推理的内存与首次下载时间需要另行验证，现阶段优先用于本机原型测试。
+Render Blueprint 已启用 OCR，构建命令为 `pip install -r requirements-ocr.txt && python prepare_ocr.py`，启动命令保持 `python app.py`。`prepare_ocr.py` 会在构建时下载并加载 CPU 识别模型，使用生成的数字小图验证模型可用；不读取数据库或用户图片。模型文件保留在构建产物内的 `instance/shards/models/`，不上传 Git。
+
+如果之前通过 Render 的 Web Service 手动创建服务，请在 Dashboard 的 Settings 中更新 Build Command；修改 `render.yaml` 不会自动覆盖手动服务设置。更新代码并重新部署后，识别仍在 Render 的服务器上执行，你的电脑不需要保持开机。目前已通过本机模型和流程验证，但尚未在 Render 上做实际内存、速度和长图压测；免费实例能否稳定处理你的长图仍需部署后验证。
+
+Mock 图鉴和上传结果都不是持久化数据库。Render 服务重启或重新部署后，运行时新增的本机文件及内存结果可能丢失；当前阶段请把它们当作测试资料。
 
 参考：[RapidOCR 官方使用文档](https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/)。
 
@@ -65,7 +69,7 @@ python -m pip --python .venv/Scripts/python.exe install -r requirements.txt
 | --- | --- |
 | Language | Python 3 |
 | Branch | main |
-| Build Command | `pip install -r requirements.txt` |
+| Build Command | `pip install -r requirements-ocr.txt && python prepare_ocr.py` |
 | Start Command | `python app.py` |
 | Health Check Path | `/healthz` |
 | Instances | 1 |
