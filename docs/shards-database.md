@@ -2,7 +2,11 @@
 
 一个新的 `onmyoji_shards` schema 已足够容纳当前资料及后续扩展，继续使用现有 Supabase PostgreSQL 数据库即可。抽奖继续使用 `lottery_app`，两者没有关联或共享表。
 
-初始化文件是根目录的 `schema_shards.sql`。**目前只是提供 SQL 文件，没有执行，也没有将 Mock Web 接入数据库。** 不需要为了查看原型而运行此脚本。
+初始化文件是根目录的 `schema_shards.sql`。**已按用户授权在当前 `.env` 对应的 Supabase 执行建表，9 张表初始全部为空；Mock Web 尚未接入数据库。** 不需要为了查看原型重复运行此脚本。其他 Supabase 项目需要各自初始化。
+
+用户将自行添加式神名字，未导入 Mock 图鉴或任何测试玩家、账号及库存。可在 Supabase 的 Table Editor 切换到 `onmyoji_shards`，打开 `shikigami` 新增：填写 `name` 和 `rarity`（`SSR`、`SP`、`UR` 或联动的 `COLLAB`），`image_path` 可稍后补充；`id`、创建时间、更新时间和启用状态有默认值。识别别名写到 `shikigami_aliases`，使用对应的正式式神 UUID。
+
+执行后已确认：9 张表全部启用 RLS，9 个更新时间触发器存在，`anon` / `authenticated` 均没有该 schema 的访问权限。这里只完成数据库结构，网页 Admin 新增功能仍写本机 Mock JSON，不会自动写入 Supabase。
 
 ## 表与关系
 
