@@ -73,6 +73,21 @@ def start_draw(state):
     return state
 
 
+def update_draw(state, data):
+    settings = validate_settings(data)
+    if state["status"] != "ready":
+        for key in ("participants", "mode", "scheduled_at"):
+            if settings[key] != state[key]:
+                raise DrawError("抽奖已经开始，只能修改标题、主办人和奖品，名单、模式和时间不能更改。", 409)
+    if settings["participants"] != state["participants"]:
+        cards = copy.deepcopy(settings["participants"])
+        secrets.SystemRandom().shuffle(cards)
+        state["cards"] = cards
+    state.update(copy.deepcopy(settings))
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    return state
+
+
 def select_card(state, index):
     if type(index) is not int or not 0 <= index < len(state["cards"]):
         raise DrawError("这张刮刮卡不存在。", 404)

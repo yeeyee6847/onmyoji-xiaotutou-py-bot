@@ -4,6 +4,7 @@ const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)]
 const csrf = $('meta[name="csrf-token"]').content;
 const form = $('#setup-form');
 let draw = null;
+let editingDraw = null;
 let view = 'setup';
 let networkBusy = false;
 let observer = null;
@@ -40,10 +41,14 @@ async function api(path, body) {
   return data;
 }
 function showView(next) {
+  if (next === 'setup' && view !== 'setup') {
+    if (draw && !draw.practice) openEditor(draw);
+    else if (editingDraw) openEditor(editingDraw);
+  }
   view = next;
   $$('.view').forEach(node => { node.hidden = node.id !== `view-${next}`; });
   $$('.nav-item').forEach(node => node.classList.toggle('active', node.dataset.view === next));
-  $('#breadcrumb-current').textContent = {setup: '建立抽獎', draw: '刮獎現場', history: '抽獎紀錄'}[next];
+  $('#breadcrumb-current').textContent = {setup: editingDraw ? '編輯抽獎' : '建立抽獎', draw: '刮獎現場', history: '抽獎紀錄'}[next];
   if (next === 'draw' && draw) renderDraw();
   if (next === 'history') loadHistory();
   window.scrollTo({top: 0, behavior: 'instant'});
@@ -103,6 +108,38 @@ function settings() {
     scheduled_at: Number.isNaN(date.getTime()) ? '' : date.toISOString(),
     mode: $('input[name="mode"]:checked').value, participants: people()};
 }
+function editorControls() {
+  const locked = editingDraw && editingDraw.status !== 'ready';
+  $('#submit-label').textContent = editingDraw ? '儲存修改' : '建立正式抽獎';
+  $('#new-draw-button').hidden = !editingDraw;
+  $('#editing-notice').hidden = !editingDraw;
+  $('#editing-notice').textContent = editingDraw ? `正在編輯「${editingDraw.title}」，儲存後更新同一筆抽獎。${locked ? '抽獎已開始，可修改標題、主辦人與獎品；名單、模式和時間已鎖定。' : '開始前可修改所有設定；修改名單後卡片會重新洗牌。'}` : '';
+  $$('#participant-rows input, #participant-rows button, input[name="mode"], #scheduled-at, #add-person, #bulk-toggle, #bulk-input, #bulk-import').forEach(node => { node.disabled = !!locked; });
+  // 试玩原样使用已锁定的名单，避免截断 datetime-local 的秒数。
+  $('#practice-button').hidden = !!locked;
+  if (locked) $('#bulk-area').hidden = true;
+}
+function openEditor(state) {
+  editingDraw = state;
+  for (const key of ['title', 'host', 'prize']) $(`#${key}`).value = state[key];
+  const date = new Date(state.scheduled_at);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  $('#scheduled-at').value = date.toISOString().slice(0, 16);
+  $(`input[name="mode"][value="${state.mode}"]`).checked = true;
+  $('#participant-rows').replaceChildren();
+  state.participants.forEach(person => addPerson(person.name, person.number));
+  $('#form-error').hidden = true;
+  editorControls(); updatePreview(); saveDraft();
+}
+$('#new-draw-button').addEventListener('click', () => {
+  if (networkBusy) return;
+  editingDraw = null;
+  editorControls();
+  $('#breadcrumb-current').textContent = '建立抽獎';
+  $('#editing-notice').hidden = false;
+  $('#editing-notice').textContent = '正在建立新的抽獎。你可以沿用目前設定，原抽獎會保留在抽獎紀錄中。';
+  toast('已切換為建立新抽獎。');
+});
 function saveDraft() {
   try { sessionStorage.setItem('lucky-draft', JSON.stringify({...settings(), localTime: $('#scheduled-at').value})); } catch {}
 }
@@ -147,6 +184,10 @@ $('#bulk-import').addEventListener('click', () => {
 async function createDraw(practice) {
   if (networkBusy) return;
   const payload = settings();
+  const saving = !practice && editingDraw;
+  if (editingDraw && editingDraw.status !== 'ready') {
+    for (const key of ['scheduled_at', 'participants', 'mode']) payload[key] = editingDraw[key];
+  }
   if (!form.reportValidity()) return;
   if (payload.participants.length < 2) return showFormError('至少需要 2 位參與者。');
   const nums = new Set(), names = new Set();
@@ -159,9 +200,11 @@ async function createDraw(practice) {
   networkBusy = true;
   $('#create-button').disabled = $('#practice-button').disabled = true;
   try {
-    draw = await api('/api/draws', {...payload, practice});
+    draw = await api(saving ? `/api/draws/${editingDraw.id}/settings` : '/api/draws', {...payload, practice});
+    if (practice && editingDraw) editingDraw = {...editingDraw, ...payload};
+    if (!practice) editingDraw = draw;
     saveCurrent(); showView('draw');
-    toast(practice ? '已進入試玩，所有操作都不會寫入資料庫。' : '正式抽獎已建立並儲存，準備迎接好運。');
+    toast(saving ? '修改已儲存，已更新原抽獎，沒有新增紀錄。' : practice ? '已進入試玩，所有操作都不會寫入資料庫。' : '正式抽獎已建立並儲存，準備迎接好運。');
   } catch (error) { showFormError(error.message); }
   finally { networkBusy = false; $('#create-button').disabled = $('#practice-button').disabled = false; }
 }
@@ -403,7 +446,14 @@ async function loadHistory() {
         try { draw = await api(`/api/draws/${record.id}`); saveCurrent(); showView('draw'); }
         catch (error) { toast(error.message); open.disabled = false; }
       });
-      row.append(icon, info, result, open); return row;
+      const edit = el('button', 'button secondary small', '編輯設定');
+      edit.addEventListener('click', async () => {
+        edit.disabled = true;
+        try { draw = await api(`/api/draws/${record.id}`); saveCurrent(); showView('setup'); }
+        catch (error) { toast(error.message); }
+        finally { edit.disabled = false; }
+      });
+      row.append(icon, info, result, edit, open); return row;
     }));
   } catch (error) {
     const empty = el('div', 'empty-state panel'); empty.append(el('span', 'empty-symbol', '✧'), el('h2', '', '暫時無法讀取紀錄'), el('p', '', error.message)); container.replaceChildren(empty);
@@ -424,7 +474,14 @@ async function restoreCurrent() {
   if (match) saved = {id: match[2], practice: match[1] === 'practice'};
   else { try { saved = JSON.parse(sessionStorage.getItem('lucky-current')); } catch {} }
   if (!saved || typeof saved.id !== 'string' || !/^[a-f0-9-]{36}$/.test(saved.id)) return;
-  try { draw = await api(`/api/draws/${saved.id}${saved.practice ? '?practice=1' : ''}`); if (match) showView('draw'); else $('#nav-count').textContent = draw.participants.length; }
+  try {
+    draw = await api(`/api/draws/${saved.id}${saved.practice ? '?practice=1' : ''}`);
+    if (match) showView('draw');
+    else {
+      $('#nav-count').textContent = draw.participants.length;
+      if (!draw.practice && view === 'setup') openEditor(draw);
+    }
+  }
   catch (error) { if (match) toast(error.message); }
 }
 restoreDraft();

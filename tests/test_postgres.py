@@ -3,7 +3,7 @@ import unittest
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
-from lottery import new_draw, reveal_card, select_card, start_draw
+from lottery import new_draw, reveal_card, select_card, start_draw, update_draw
 from storage import PostgresStore
 
 
@@ -25,6 +25,13 @@ class PostgresIntegrationTests(unittest.TestCase):
                         "participants": [{"name": "A", "number": 1}, {"name": "B", "number": 100}]})
                     store.create(state)
                     test_ids.append(state["id"])
+                    created_at = state['created_at']
+                    edited = store.mutate(state['id'], lambda s: update_draw(s, {**s, 'title': 'Edited test (rolled back)'}))
+                    self.assertEqual(edited['id'], state['id'])
+                    self.assertEqual(edited['created_at'], created_at)
+                    self.assertEqual(store.get(state['id'])['title'], 'Edited test (rolled back)')
+                    count = connection.execute('SELECT count(*) FROM lottery_app.draws WHERE id = %s', (state['id'],)).fetchone()[0]
+                    self.assertEqual(count, 1)
                     store.mutate(state["id"], start_draw)
                     store.mutate(state["id"], lambda s: select_card(s, 0))
                     self.assertEqual(store.get(state["id"])["selected"], 0)

@@ -6,7 +6,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, session
 from werkzeug.exceptions import HTTPException
 
-from lottery import DrawError, new_draw, public_state, reveal_card, select_card, start_draw
+from lottery import DrawError, new_draw, public_state, reveal_card, select_card, start_draw, update_draw
 from storage import PostgresStore, PracticeStore
 
 
@@ -117,6 +117,8 @@ def create_app(store=None):
             operation = lambda state: reveal_card(state, payload.get("index"))
         elif action == "select":
             operation = lambda state: select_card(state, payload.get("index"))
+        elif action == "settings":
+            operation = lambda state: update_draw(state, payload)
         else:
             raise DrawError("未知操作。", 404)
         if payload.get("practice", False):

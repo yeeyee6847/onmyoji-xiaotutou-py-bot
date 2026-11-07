@@ -49,6 +49,7 @@
       <div class="page-heading"><div><div class="eyebrow"><span></span> A LITTLE CHANCE, A LOT OF JOY</div><h1>把好運，刮出來<span class="heading-spark">✧</span></h1><p>準備一份驚喜，讓每個號碼都有被期待的理由。</p></div><span class="edition-tag"><svg><use href="#i-spark"/></svg>好運製造所</span></div>
       <div class="steps" aria-label="抽獎流程"><span class="current"><b>01</b> 設定抽獎</span><i></i><span><b>02</b> 刮開好運</span><i></i><span><b>03</b> 揭曉得主</span></div>
       <form id="setup-form" novalidate>
+        <div class="draw-notice" id="editing-notice" hidden></div>
         <div class="setup-grid">
           <div class="form-column">
             <section class="panel basic-panel"><div class="panel-heading"><span class="section-icon"><svg><use href="#i-ticket"/></svg></span><h2>先為好運取個名字</h2><span class="section-number">01</span></div>
@@ -71,7 +72,7 @@
             <div class="preview-tip"><svg><use href="#i-info"/></svg><p>每張卡片會隨機藏入一個參與者的號碼。用滑鼠或手指慢慢刮開，驚喜才會出現。</p></div>
           </section><div class="practice-note"><span class="practice-icon"><svg><use href="#i-play"/></svg></span><div><strong>第一次玩？先試試手氣</strong><p>試玩不計成績、不寫入資料庫，<br>放心感受刮開好運的樂趣。</p></div></div><div class="little-message">期待本身，就是一件好事。 <span>✧</span></div></aside>
         </div>
-        <div class="form-footer"><div><svg><use href="#i-shield"/></svg><span>正式抽獎自動保存，得主揭曉後記錄結果</span></div><div class="footer-buttons"><button type="button" class="button secondary" id="practice-button"><svg><use href="#i-play"/></svg>先試玩一下</button><button type="submit" class="button primary" id="create-button">建立正式抽獎<svg><use href="#i-arrow"/></svg></button></div></div>
+        <div class="form-footer"><div><svg><use href="#i-shield"/></svg><span>正式抽獎自動保存，得主揭曉後記錄結果</span></div><div class="footer-buttons"><button type="button" class="button secondary" id="new-draw-button" hidden>另建新抽獎</button><button type="button" class="button secondary" id="practice-button"><svg><use href="#i-play"/></svg>先試玩一下</button><button type="submit" class="button primary" id="create-button"><span id="submit-label">建立正式抽獎</span><svg><use href="#i-arrow"/></svg></button></div></div>
       </form>
       <footer class="page-footer"><span>抽獎小屋 · 為每一次相聚，加一點驚喜。</span><span>MADE FOR LITTLE HAPPY MOMENTS ✧</span></footer>
     </section>
