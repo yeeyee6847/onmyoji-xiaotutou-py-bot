@@ -4,6 +4,8 @@ Python + Flask + Supabase PostgreSQL 抽奖网站，支持本机运行和 Render
 
 ## 碎片交换原型（独立 Mock 功能）
 
+正式数据库的独立建表草案：[schema_shards.sql](schema_shards.sql)，关系与规则见 [碎片数据结构说明](docs/shards-database.md)。仅提供文件，尚未执行；原型继续使用 Mock。
+
 启动服务后打开 **http://127.0.0.1:5000/shards**，或从抽奖页面点击「碎片交换」。本功能不访问 Supabase、不运行建表脚本，也不改动抽奖记录。
 
 - 一般用户：上传游戏原始碎片长图、查看逐格裁切和 OCR 原文、选择正确式神、修正数量、逐项确认或排除，最后导出 JSON。
