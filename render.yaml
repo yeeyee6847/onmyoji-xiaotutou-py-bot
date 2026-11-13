@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements-ocr.txt && python prepare_ocr.py
-    startCommand: python app.py
+    startCommand: python run_all.py
     healthCheckPath: /healthz
     numInstances: 1
     envVars:
@@ -14,3 +14,9 @@ services:
         generateValue: true
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_TRADE_MODE
+        value: dm
+      - key: DISCORD_TRADE_CHANNEL_ID
+        value: "1504352387635216545"

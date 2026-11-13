@@ -4,6 +4,8 @@ Python + Flask + Supabase PostgreSQL 抽奖网站，支持本机运行和 Render
 
 ## Discord 网站登录
 
+同一个 Render Web Service 同时运行网站和 Bot：Build Command 使用 `pip install -r requirements-ocr.txt && python prepare_ocr.py`，Start Command 使用 `python run_all.py`，健康检查 `/healthz`。设置数据库、Flask 密钥和 Discord token；域名由 Render 自动提供。两个子进程由启动程序统一管理。免费服务休眠时 Bot 也会离线，详见 [部署说明](docs/discord-login.md)。
+
 支持 Bot `/login` 一次性链接、Discord user ID + 密码登录、首次登录后设置密码。Render 自动使用当前部署地址，本机使用当前端口；Bot 与 Web 分开部署时可用 `WEBSITE_URL` 指定网站地址。网站入口 `/login`，账号设置 `/account`。全站功能及接口均需登录，首次设密后或已设密账号登录后直接进入 `/shards`，不再自动打开改密页。安装和接入现有 Bot 的说明见 [Discord 登录](docs/discord-login.md)。
 
 ## 碎片交换原型

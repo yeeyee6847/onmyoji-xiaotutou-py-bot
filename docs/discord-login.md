@@ -43,7 +43,19 @@ python discord_bot.py
 
 ## 动态网站地址与部署
 
-默认 `requirements.txt` 已包含 `discord.py`。Render Bot 服务的 Build Command 使用 `pip install -r requirements.txt`（也兼容 `requirements-bot.txt`），Start Command 使用 `python discord_bot.py`。修改依赖后需要重新构建部署，仅 Restart 不会安装新增依赖。网站服务仍使用 `python app.py`，Bot 进程应作为单独 Background Worker 运行，避免网站没有 HTTP 端口。
+**同一个 Render Web Service 同时运行网站和 Bot：**
+
+```text
+Build Command: pip install -r requirements-ocr.txt && python prepare_ocr.py
+Start Command: python run_all.py
+Health Check Path: /healthz
+```
+
+环境变量设置 `DATABASE_URL`、`FLASK_SECRET_KEY`、`DISCORD_TOKEN`、`DISCORD_TRADE_MODE=dm` 及 `DISCORD_TRADE_CHANNEL_ID=1504352387635216545`。同服务默认使用 Render 自动提供的 `RENDER_EXTERNAL_URL`，不用手写域名。`run_all.py` 监督两个子进程，任一意外退出就终止另一进程并以失败状态退出，让平台重启；收到关闭信号时清理两个进程。不要再额外启动同 token 的另一份 Bot。
+
+`render.yaml` 已改为统一启动；手动创建的服务需在 Dashboard 修改 Start Command。免费 Web Service 空闲休眠时两个进程都会停止，不能保证 Bot 全天在线。单独部署仍可使用下面的方式。
+
+默认 `requirements.txt` 已包含 `discord.py`。单独部署 Bot 时，Build Command 使用 `pip install -r requirements.txt`（也兼容 `requirements-bot.txt`），Start Command 使用 `python discord_bot.py`，服务类型用 Background Worker；单独网站则使用 `python app.py`。同一 Web Service 同时运行二者时使用上面的 `python run_all.py`。修改依赖后需要重新构建部署，仅 Restart 不会安装新增依赖。
 
 每次 `/login` 都读取当前运行环境，不在代码写死域名：
 
