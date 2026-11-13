@@ -38,6 +38,7 @@ class TradeChecks(unittest.TestCase):
         self.addCleanup(cleanup)
         self.players,self.a,self.b,self.shiki=fixture(self.c)
         self.service=Trades(SavepointStore(self.c));self.stock=FragmentManagement(SavepointStore(self.c))
+        self.baseline_offers=self.stock.totals()[self.shiki[0]]['offers']-10
 
     def create(self,give=4,receive=3):
         return self.service.create(self.players[0],dict(game_account_id=self.a['id'],other_account_id=self.b['id'],items=[dict(direction='give',shikigami_id=self.shiki[0],quantity=give),dict(direction='receive',shikigami_id=self.shiki[1],quantity=receive)]))['id']
@@ -47,7 +48,7 @@ class TradeChecks(unittest.TestCase):
     def test_accept_reserves_and_both_confirm_deduct_exactly_once(self):
         trade=self.create();self.assertEqual(self.c.execute('SELECT count(*) FROM onmyoji_shards.trade_reservations WHERE trade_id=%s',(trade,)).fetchone()[0],0)
         self.service.action(self.players[1],trade,'accept');self.service.action(self.players[1],trade,'accept')
-        self.assertEqual(self.stock.totals()[self.shiki[0]]['offers'],6)
+        self.assertEqual(self.stock.totals()[self.shiki[0]]['offers'],self.baseline_offers+6)
         self.assertEqual(self.quantity(self.a['id'],self.shiki[0]),10)
         self.assertEqual(self.service.action(self.players[0],trade,'confirm')['status'],'accepted')
         self.assertEqual(self.quantity(self.a['id'],self.shiki[0]),10)
@@ -61,7 +62,7 @@ class TradeChecks(unittest.TestCase):
     def test_cancel_after_one_confirmation_releases_without_deducting(self):
         trade=self.create();self.service.action(self.players[1],trade,'accept');self.service.action(self.players[0],trade,'confirm')
         self.service.action(self.players[1],trade,'cancel');self.service.action(self.players[0],trade,'cancel')
-        self.assertEqual(self.stock.totals()[self.shiki[0]]['offers'],10)
+        self.assertEqual(self.stock.totals()[self.shiki[0]]['offers'],self.baseline_offers+10)
         self.assertEqual(self.quantity(self.a['id'],self.shiki[0]),10)
         self.assertEqual(self.c.execute('SELECT count(*) FROM onmyoji_shards.trade_reservations WHERE trade_id=%s',(trade,)).fetchone()[0],0)
 
@@ -79,8 +80,22 @@ class TradeChecks(unittest.TestCase):
         trade=self.create();self.service.action(self.players[1],trade,'accept')
         with self.assertRaises(DrawError):self.stock.write(self.players[0],dict(game_account_id=self.a['id'],items=[dict(shikigami_id=self.shiki[0],target='offers',quantity=3)]))
         self.stock.write(self.players[0],dict(game_account_id=self.a['id'],items=[dict(shikigami_id=self.shiki[0],target='offers',quantity=8)]))
-        self.assertEqual(self.stock.totals()[self.shiki[0]]['offers'],4)
+        self.assertEqual(self.stock.totals()[self.shiki[0]]['offers'],self.baseline_offers+4)
         self.assertEqual(len(self.service.listing(self.players[2],shikigami_id=self.shiki[0])),1)
+
+    def test_reserved_record_cannot_be_deleted_until_cancelled(self):
+        trade=self.create();self.service.action(self.players[1],trade,'accept')
+        for player,account,shiki,target in [
+            (self.players[0],self.a['id'],self.shiki[0],'offers'),
+            (self.players[0],self.a['id'],self.shiki[1],'wants'),
+        ]:
+            with self.assertRaises(DrawError) as error:
+                self.stock.delete(player,dict(game_account_id=account,shikigami_id=shiki,target=target))
+            self.assertEqual(error.exception.status,409)
+        self.assertEqual(self.quantity(self.a['id'],self.shiki[0]),10)
+        self.service.action(self.players[0],trade,'cancel')
+        self.stock.delete(self.players[0],dict(game_account_id=self.a['id'],shikigami_id=self.shiki[0],target='offers'))
+        self.assertEqual(self.stock.search(mine=self.players[0],account=self.a['id'],target='offers'),[])
 
     def test_failed_accept_rolls_back_all_reservations(self):
         first=self.create();second=self.create(2,11)

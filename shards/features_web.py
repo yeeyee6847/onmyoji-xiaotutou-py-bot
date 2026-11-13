@@ -33,6 +33,8 @@ def register_features(app):
     def totals():return jsonify(service.totals())
     @bp.post('/api/fragments')
     def write():return jsonify(service.write(user()['id'],request.get_json()))
+    @bp.post('/api/fragments/delete')
+    def delete():return jsonify(service.delete(user()['id'],request.get_json()))
     @bp.get('/api/admin/samples')
     def listing():
         admin()

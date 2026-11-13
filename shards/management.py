@@ -10,6 +10,24 @@ class FragmentManagement:
     def __init__(self, store=None):
         self.store = store if store is not None else PostgresStore()
 
+    def delete(self, player_id, payload):
+        if not isinstance(payload, dict):
+            raise DrawError('资料格式不正确。')
+        account = account_id(payload.get('game_account_id'))
+        identity = account_id(payload.get('shikigami_id'))
+        target = payload.get('target')
+        if target not in ('offers', 'wants'):
+            raise DrawError('请选择提供或想要。')
+        with self.store.connection() as conn:
+            owner = conn.execute('''SELECT id FROM onmyoji_shards.game_accounts
+             WHERE id=%s AND player_id=%s AND is_active FOR UPDATE''', (account, player_id)).fetchone()
+            if not owner:
+                raise DrawError('找不到你的游戏账号。', 404)
+            guard_quantity(conn, account, identity, target, 0)
+            conn.execute('''DELETE FROM onmyoji_shards.fragment_current
+             WHERE game_account_id=%s AND shikigami_id=%s AND target=%s''', (account, identity, target))
+        return dict(deleted=True)
+
     def write(self, player_id, payload):
         if not isinstance(payload,dict):
             raise DrawError('资料格式不正确。')

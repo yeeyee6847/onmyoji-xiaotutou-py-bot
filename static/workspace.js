@@ -33,7 +33,14 @@
         const input=node('input');input.type='number';input.min='0';input.max='99999';input.value=row.quantity;input.setAttribute('aria-label',`${row.name}數量`);
         const save=node('button','覆蓋儲存');save.onclick=async()=>{
           save.disabled=true;try{if(input.value==='')throw new Error('請填寫數量；清空記錄請填 0。');await api('/api/fragments',{game_account_id:row.game_account_id,items:[{shikigami_id:row.shikigami_id,target:row.target,quantity:Number(input.value)}]});message('數量已覆蓋儲存。');await results();}catch(e){message(e.message);}finally{save.disabled=false;}
-        };action.append(input,save);
+        };
+        const remove=node('button','刪除');remove.className='danger';remove.type='button';
+        remove.onclick=async()=>{
+          if(!window.confirm(`確定刪除「${row.nickname}」的「${row.name}」${row.target==='wants'?'想要':'可提供'}碎片記錄？`))return;
+          remove.disabled=save.disabled=true;
+          try{await api('/api/fragments/delete',{game_account_id:row.game_account_id,shikigami_id:row.shikigami_id,target:row.target});message('碎片記錄已刪除。');await results();}
+          catch(e){message(e.message);}finally{remove.disabled=save.disabled=false;}
+        };action.append(input,save,remove);
       }else {const link=node('a','提出交換');link.href='/trades?other_account_id='+row.game_account_id;action.append(link);}tr.append(action);return tr;
     }));
   }

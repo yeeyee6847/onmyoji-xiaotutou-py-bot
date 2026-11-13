@@ -58,6 +58,22 @@ class ManagementChecks(unittest.TestCase):
         self.accounts.save_import(self.player,job);self.write(3);self.accounts.save_import(self.player,job)
         self.assertEqual(self.accounts.fragments(self.player,self.account['id'])[0]['quantity'],3)
 
+    def test_delete_is_owned_category_scoped_and_csrf_protected(self):
+        self.write(3);self.write(9,'wants')
+        body=dict(game_account_id=self.account['id'],shikigami_id=self.item['id'],target='offers')
+        self.assertEqual(self.client.post('/api/fragments/delete',json=body).status_code,403)
+        self.user['id']=self.other
+        self.assertEqual(self.post('/api/fragments/delete',body).status_code,404)
+        self.user['id']=self.player
+        self.assertEqual(self.post('/api/fragments/delete',dict(body,target='invalid')).status_code,400)
+        self.assertEqual(self.post('/api/fragments/delete',body).status_code,200)
+        rows=self.fragments.search(mine=self.player,account=self.account['id'])
+        self.assertEqual([(r['target'],r['quantity']) for r in rows],[('wants',9)])
+        self.assertEqual(self.post('/api/fragments/delete',body).status_code,200)
+        self.write(0)
+        self.assertEqual(self.post('/api/fragments/delete',body).status_code,200)
+        self.assertEqual(len(self.fragments.search(mine=self.player,account=self.account['id'])),1)
+
     def test_admin_catalog_create_edit_conflicts_and_user_denial(self):
         name='New-'+uuid.uuid4().hex[:12];payload=dict(name=name,name_simplified=name+'S',rarity='UR',image_path='https://example.test/avatar.png')
         self.assertEqual(self.post('/api/shards/catalog',dict(payload,role='admin')).status_code,403)
