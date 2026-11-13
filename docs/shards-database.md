@@ -2,13 +2,21 @@
 
 一个新的 `onmyoji_shards` schema 已足够容纳当前资料及后续扩展，继续使用现有 Supabase PostgreSQL 数据库即可。抽奖继续使用 `lottery_app`，两者没有关联或共享表。
 
-初始化文件是根目录的 `schema_shards.sql`。**已按用户授权在当前 `.env` 对应的 Supabase 执行建表，9 张表初始全部为空；Mock Web 尚未接入数据库。** 不需要为了查看原型重复运行此脚本。其他 Supabase 项目需要各自初始化。
+初始化文件是根目录的 `schema_shards.sql`。已按用户授权在当前 `.env` 对应的 Supabase 执行建表。网页式神图鉴现已连接真实数据库，可打开 `/shards#catalog` 查看；每次进入图鉴重新读取启用的式神和别名。不需要重复运行建表脚本。其他 Supabase 项目需要各自初始化。
 
 用户将自行添加式神名字，未导入 Mock 图鉴或任何测试玩家、账号及库存。可在 Supabase 的 Table Editor 切换到 `onmyoji_shards`，打开 `shikigami` 新增：填写 `name` 和 `rarity`（`SSR`、`SP`、`UR` 或联动的 `COLLAB`），`image_path` 可稍后补充；`id`、创建时间、更新时间和启用状态有默认值。识别别名写到 `shikigami_aliases`，使用对应的正式式神 UUID。
 
-执行后已确认：9 张表全部启用 RLS，9 个更新时间触发器存在，`anon` / `authenticated` 均没有该 schema 的访问权限。这里只完成数据库结构，网页 Admin 新增功能仍写本机 Mock JSON，不会自动写入 Supabase。
+执行后已确认：基础 9 张表全部启用 RLS，9 个更新时间触发器存在，`anon` / `authenticated` 均没有该 schema 的访问权限。网页由 Python 后端读取图鉴，不公开数据库凭据；真实图鉴为只读模式，禁止通过演示 Admin 写入。新增、修改请在 Supabase 操作。`image_path` 支持 HTTPS 图片网址，未填写时显示文字头像。上传识别使用真实图鉴配对；真实上传完成核对后可保存到所选游戏账号的确认清单，不会自动转成交换提供量或需求。测试显式提供临时目录时继续使用独立 Mock 图鉴。
 
 ## 表与关系
+
+新增碎片工作台使用 `004_fragment_management.sql` 的 `fragment_current` 与 `portrait_samples`，已在当前数据库执行。当前数量由统一表维护，历史导入仍保留；Admin 可在网页写图鉴和审核头像，不再是初始原型的只读状态。详见 [碎片工作台](fragment-workspace.md)。
+
+Discord 登录另外使用迁移 `migrations/003_discord_login.sql` 的 4 张私有认证表（已在当前数据库建立），连接原有玩家与 Discord 身份；详情见 [Discord 登录](discord-login.md)。不会将密码或一次性凭证存入式神表。
+
+`shikigami.display_order` ??????????????????????? 133 ?????????????????? 1?133???? `display_order DESC NULLS LAST` ????????? `migrations/shikigami_display_order.tsv` ???? 1?144 ????????????????????????????????????????????????????????????? `instance/display-order-renumber-*.json`?
+
+`shikigami.name` 保留原繁体名字，新增 `name_simplified` 保存用户提供的简体名字，允许为空（新增式神时可稍后补充）。现有对应表保存在 `migrations/shikigami_simplified_names.tsv`，字段迁移为 `migrations/001_shikigami_simplified_name.sql`。名称按用户提供的文字保存，不自动纠正或转换；此字段不会自动同步到识别别名或更改网页显示名字。
 
 | 表 | 用途 |
 | --- | --- |
@@ -52,6 +60,10 @@ erDiagram
 后续交换撮合、交换申请、履约记录、保留数量等，可以继续在同一个 schema 新增表；此次不提前实现交换事务或撮合规则。
 
 ## 图片与现有 Mock 的迁移
+
+现有 `onmyoji` bucket 已按授权设为公开。已按分类和名字拼音，将 122 个实际存在且已验证可访问的图片网址填入 `shikigami.image_path`。没有改动式神名字或分类；未匹配的项目保持原样。
+
+后续批量配图可使用 `sync_shikigami_images.py`（单独安装工具依赖 `pypinyin`，无需加入网站运行依赖）。先运行 `python sync_shikigami_images.py --project-url https://你的项目.supabase.co` 查看配对结果；加 `--apply` 才写入。私有 bucket 需要明确加 `--make-public` 才会公开整个 bucket。脚本按分类匹配唯一拼音，不做模糊猜测；写入前验证所有图片链接，并在忽略的 `instance/image-sync-*.json` 保存旧路径备份。匹配成功的记录会替换旧图片路径，未匹配记录不变。
 
 图片实际文件放在后续确定的持久化对象存储，表中只记录 `image_path`。Render 本机头像路径和 `/api/shards/portraits/...` 是当前 Mock 的临时资源地址，不应当作正式永久头像地址直接迁移。
 

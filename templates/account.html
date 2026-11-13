@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf }}"><meta name="referrer" content="no-referrer">
+  <title>結緣帖 · 我的帳號</title>
+  <link rel="icon" href="/static/favicon.svg"><link rel="stylesheet" href="/static/account.css">
+  <script src="/static/account.js" defer></script>
+</head>
+<body data-account-page="{{ 'true' if account_page else 'false' }}">
+<main class="account-shell">
+  <a class="brand" href="/shards">結緣帖 <span>陰陽師碎片交換</span></a>
+  <section class="account-card">
+    <div id="message" role="status" hidden></div>
+    <section id="magic-section" hidden>
+      <p class="eyebrow">DISCORD LOGIN</p><h1>使用 Discord 連結登入</h1>
+      <p>這是 Bot 為你產生的一次性登入連結，10 分鐘內有效。按下按鈕後，會登入這個連結所屬的 Discord 帳號。</p>
+      <p>請只使用你自己透過 <strong>/login</strong> 取得的連結，使用後即失效。</p>
+      <button id="consume-link" type="button">確認並登入</button>
+    </section>
+    <section id="password-section" {% if account_page %}hidden{% endif %}>
+      <p class="eyebrow">WELCOME BACK</p><h1>登入你的帳號</h1>
+      <form id="login-form">
+        <label>Discord user ID<input name="username" autocomplete="username" inputmode="numeric" pattern="[0-9]{15,20}" maxlength="20" required placeholder="你的 Discord user ID"></label>
+        <label>密碼<input name="password" type="password" autocomplete="current-password" maxlength="128" required></label>
+        <button type="submit">登入</button>
+      </form>
+      <p>第一次使用或忘記密碼？到 Discord 對 Bot 輸入 <strong>/login</strong>，使用連結登入後即可設定密碼。</p>
+      <p class="hint">Discord 開啟「開發者模式」後，可從你的個人資料複製使用者 ID。</p>
+    </section>
+    <section id="profile-section" hidden>
+      <p class="eyebrow">MY ACCOUNT</p><h1 id="display-name">我的帳號</h1>
+      <p>Discord user ID：<strong id="discord-user-id"></strong></p>
+      <p>帳號身分：<strong id="account-role"></strong></p>
+      <p id="password-state"></p><p><a href="/trades">我的交換申請與交換中 →</a></p>
+      <p><a href="/game-accounts">管理我的遊戲帳號與碎片 →</a></p>
+      <form id="password-form" hidden>
+        <h2>設定或重設密碼</h2>
+        <label>新密碼<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+        <label>再次輸入新密碼<input name="confirm_password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+        <p class="hint">12–128 個字元。儲存後其他裝置會登出。</p>
+        <button type="submit">儲存密碼</button>
+      </form>
+      <p id="reverify-note" hidden>要設定或重設密碼，請在 Discord 重新執行 /login，使用連結登入後於 15 分鐘內完成。</p>
+      <div class="account-actions"><a href="/shards">進入碎片交換 →</a><button id="logout" type="button" class="secondary">登出</button></div>
+    </section>
+  </section>
+  <a class="back" href="/shards#catalog">返回式神圖鑑</a>
+</main>
+</body></html>

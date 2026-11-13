@@ -12,9 +12,10 @@ from types import SimpleNamespace
 from PIL import Image, ImageDraw
 
 from app import create_app
+from auth_fixture import SignedInFixture
 from lottery import DrawError
 from shards.catalog import MockCatalog
-from shards.vision import detect_cards, image_data, load_image, match_name, parse_quantity
+from shards.vision import detect_cards, image_data, load_image, match_name, parse_quantity, quantity_consensus, card_section_bands
 
 
 def png(image=None):
@@ -50,7 +51,7 @@ class ShardTests(unittest.TestCase):
             assert target.resolve().is_relative_to(directory.resolve())
             shutil.rmtree(target)
         self.addCleanup(cleanup)
-        self.app = create_app(NoDatabase(), shard_options={'root': self.temp.name, 'inspector': fake_inspector})
+        self.app = create_app(NoDatabase(), shard_options={'root': self.temp.name, 'inspector': fake_inspector}, auth_service=SignedInFixture())
         self.app.testing = True
         self.client = self.app.test_client()
         html = self.client.get('/shards').get_data(as_text=True)
@@ -106,6 +107,38 @@ class ShardTests(unittest.TestCase):
     def test_quantity_does_not_guess_uncertain_characters(self):
         for raw, expected in [('0', 0), ('1307', 1307), ('1,307', 1307), (' 23 ', 23), ('1?', None), ('I3', None), ('3 7', None), ('', None)]:
             self.assertEqual(parse_quantity(raw), expected)
+
+    def test_mixed_scripts_simplified_name_and_ambiguous_aliases(self):
+        records = [dict(id='one', name='蒼風一目連', name_simplified='苍风一目连', aliases=[])]
+        self.assertEqual(match_name('苍风一目連', records)[0], 'one')
+        records = [dict(id='one', name='奴良陸雄', name_simplified='奴良陆生', aliases=[])]
+        self.assertEqual(match_name('奴良陆生', records)[0], 'one')
+        records.append(dict(id='two', name='其他式神', aliases=['奴良陆生']))
+        self.assertIsNone(match_name('奴良陆生', records)[0])
+
+    def test_quantity_consensus_requires_high_confidence_agreement(self):
+        self.assertEqual(quantity_consensus([('1307', .99), ('1307', .97), ('307', .8)])[0], 1307)
+        self.assertIsNone(quantity_consensus([('18', .98), ('718', .99)])[0])
+        self.assertIsNone(quantity_consensus([('18', .5), ('18', .6)])[0])
+        self.assertIsNone(quantity_consensus([('18', .99), ('18', .98), ('718', .97), ('718', .96)])[0])
+
+    def test_large_vertical_gap_is_a_second_section_not_a_regular_row(self):
+        boxes=[(x,y,60,60) for y in (100,190,280,560) for x in (40,150,260)]
+        self.assertEqual(card_section_bands(boxes),[(0,100),(361,560)])
+
+    def test_wanted_and_offered_same_shikigami_can_be_exported_separately(self):
+        job=self.post('/api/shards/demo',{}).json
+        base='/api/shards/jobs/'+job['id']
+        first=self.client.get('/api/shards/catalog').json[0]['id']
+        for index,row in enumerate(job['rows']):
+            payload=dict(included=index<2,confirmed=index<2,shikigami_id=first,quantity=10+index,
+                         target='offers' if index==0 else 'wants')
+            self.assertEqual(self.post(base+'/rows/'+row['id'],payload).status_code,200)
+        exported=self.client.get(base+'/export')
+        self.assertEqual(exported.status_code,200)
+        self.assertEqual([r['target'] for r in exported.json['items']],['offers','wants'])
+        self.assertEqual(self.post(base+'/rows/'+job['rows'][0]['id'],dict(included=True,confirmed=True,
+            shikigami_id=first,quantity=1,target='unknown')).status_code,400)
 
     def test_upload_review_export_and_session_isolation(self):
         response = self.upload()

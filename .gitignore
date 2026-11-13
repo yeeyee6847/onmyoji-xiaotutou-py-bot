@@ -9,3 +9,14 @@ instance/
 artifacts/
 .pytest_cache/
 *.log
+.vscode/
+.idea/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+Thumbs.db
+.DS_Store

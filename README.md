@@ -2,16 +2,28 @@
 
 Python + Flask + Supabase PostgreSQL 抽奖网站，支持本机运行和 Render 部署，界面使用繁体中文。后端通过环境变量 `DATABASE_URL` 连接 Supabase，本机可使用 `.env`；浏览器不会收到数据库凭证，也不会读取 Discord token。
 
-## 碎片交换原型（独立 Mock 功能）
+## Discord 网站登录
 
-正式数据库的独立建表文件：[schema_shards.sql](schema_shards.sql)，关系与规则见 [碎片数据结构说明](docs/shards-database.md)。已按用户授权在当前 `.env` 对应的 Supabase 建立 `onmyoji_shards` 的 9 张表，初始全部为空，没有导入演示图鉴。网页原型仍使用 Mock，尚未接入这些表。
+支持 Bot `/login` 一次性链接、Discord user ID + 密码登录、首次登录后设置密码。Render 自动使用当前部署地址，本机使用当前端口；Bot 与 Web 分开部署时可用 `WEBSITE_URL` 指定网站地址。网站入口 `/login`，账号设置 `/account`。全站功能及接口均需登录，首次设密后或已设密账号登录后直接进入 `/shards`，不再自动打开改密页。安装和接入现有 Bot 的说明见 [Discord 登录](docs/discord-login.md)。
 
-启动服务后打开 **http://127.0.0.1:5000/shards**，或从抽奖页面点击「碎片交换」。本功能不访问 Supabase、不运行建表脚本，也不改动抽奖记录。
+## 碎片交换原型
+
+交换申请与进行中列表位于 `/trades`，支持对方接受／拒绝、接受后预留、双方网页确认完成及完成前取消释放。搜索页可直接选择对方账号；图鉴可用量排除预留，原始库存直到双方完成才扣除。Bot 新增 `discord_trades` 扩展和 `/fragments rarity name` 搜索指令。通知方式需要配置 `DISCORD_TRADE_MODE`（`private_thread` 或 `dm`），频道由 `DISCORD_TRADE_CHANNEL_ID` 指定。
+
+新增[碎片工作台与头像参考库](docs/fragment-workspace.md)：`/my-fragments` 人工汇入与整理、`/search-fragments` 全站搜索、图鉴当前总量及持有人明细、Admin 图鉴新增编辑和 `/admin/samples` 裁切审核。选择器支持搜索和 Rarity 筛选，图片与人工数量统一覆盖保存。已执行 `004_fragment_management.sql`；其他部署需运行 `python manage.py init-fragments`。
+
+支持多个游戏账号：在 `/game-accounts` 或上传页新增账号，上传前选择归属账号，逐项核对后点击「保存到游戏账号」。账号与确认清单存入 Supabase；账号页显示各式神最近确认的数量，不累加。临时 OCR 任务及原图仍会随重启失效，演示资料不可保存。管理员角色由 `players.role` 在数据库管理，网页不提供提升权限的入口。详见 [游戏账号与碎片归属](docs/game-accounts.md)。
+
+长图中下方「我想要的碎片」也会进入核对，使用标题和区域位置区分提供／想要；类别可人工更正，无法确定时标为待分类。两种清单分开保存、查看和导出，同一式神的提供数量与想要数量不会互相覆盖。
+
+正式数据库的独立建表文件：[schema_shards.sql](schema_shards.sql)，关系与规则见 [碎片数据结构说明](docs/shards-database.md)。已建立基础表、认证迁移及碎片管理迁移。打开 `/shards#catalog` 查看图鉴，Admin 可在网页管理名字、分类、HTTPS 图片网址、排序和别名。真实上传经逐项确认后可保存到游戏账号，演示资料只可导出。
+
+启动服务后打开 **http://127.0.0.1:5000/shards**，或从抽奖页面点击「碎片交换」。后台读取 Supabase，启动时不自动运行迁移，也不改动抽奖记录。
 
 - 一般用户：上传游戏原始碎片长图、查看逐格裁切和 OCR 原文、选择正确式神、修正数量、逐项确认或排除，最后导出 JSON。
-- Admin：使用右上角的**演示身分**切换后，可新增、编辑、删除式神。资料包含名字、头像、SSR / SP / UR / 联动分类，以及用于繁简体和识别误字的别名。
-- 图鉴暂存到 `instance/shards/catalog.json`，头像在 `instance/shards/portraits/`；这些路径已被 Git 忽略。普通用户的上传结果只在当前服务器进程中暂存，重启会丢失，且不同浏览器会话互相隔离。
-- 演示身分切换是 Mock 流程，不是正式账号和权限系统。预置图鉴只是部分示例；文字占位不是实际式神肖像，可由 Admin 上传替换。
+- Admin：由 `players.role` 控制，可新增、编辑、停用式神，审核头像参考；测试 Mock 的演示身份不会更改真实权限。
+- 默认图鉴读取 Supabase 的启用式神和别名；未保存的识别任务和原图在服务器进程中暂存，重启会丢失。已确认保存的清单保存在 Supabase，按玩家和游戏账号隔离。
+- 真实图鉴隐藏演示身份，编辑按钮仅向 Admin 显示且接口检查角色；测试临时目录仍使用独立 Mock。
 
 图片处理基础依赖已加入 `requirements.txt`。要启用本地中文 OCR，安装：
 
@@ -19,13 +31,15 @@ Python + Flask + Supabase PostgreSQL 抽奖网站，支持本机运行和 Render
 python -m pip --python .venv/Scripts/python.exe install -r requirements-ocr.txt
 ```
 
-处理流程为 OpenCV 定位红色/金色卡框 → 分别裁切名字和数量 → 放大后调用 RapidOCR（ONNX Runtime CPU、PP-OCRv4 mobile 识别模型）→ 用图鉴名字和别名匹配。本机第一次识别会从 RapidAI 的模型源下载识别模型，Render 则在构建时准备模型；输入图片始终在当前 Python 服务器处理，不会上传给外部 OCR 服务。
+处理流程为 OpenCV 定位红色/金色卡框 → 分别裁切名字和数量 → 放大后调用 RapidOCR（ONNX Runtime CPU、PP-OCRv4 mobile 识别模型）→ 用图鉴繁体名、简体名、别名配对。OpenCC 统一繁简混合文字，每次导入预建名字索引；未精确匹配的名字重试三种裁切，模糊匹配仅作为候选。数量采用五种裁切，至少两次高分读数一致才填入，否则留空人工核对；OCR 分数不等于准确概率。本机第一次识别会从 RapidAI 的模型源下载识别模型，Render 则在构建时准备模型；输入图片始终在当前 Python 服务器处理，不会上传给外部 OCR 服务。
 
 每条结果保留原图裁切、OCR 原文及分数。不精确匹配时只提供候选，不自动认定名字；不确定的数量留空，不把 `I3` 或 `1?` 擅自改成数字。所有记录最初都需要人工确认。自动定位不准时，可在上传页展开「调整切格」设置行列和百分比范围。
 
 「载入演示结果」只生成固定演示资料，页面会明确标记，不能当作真实 OCR 结果。没有 OCR 依赖或模型下载失败时仍提供切格和人工核对，页面会提示原因。导出要求所有保留条目都已确认；同一式神重复出现会阻止导出，不会擅自累计数量。
 
-这次尚未用聊天附件的原始文件测量真实识别准确率。游戏名字很小且带描边，数量叠在肖像上，原图分辨率、切格范围和图鉴完整程度都影响结果。请在新页面上传游戏导出的原图进行逐项核对。
+已使用本机 Downloads 中与附件一致的 `herodebris_long_share.jpg`（639×3110）做单图开发实测，并逐格人工转录对照。定位 121 张，改进前名字正确 51 张、数量正确 81 张（另有 10 个误读数量）；改进后名字正确 92 张、数量正确 79 张（1 个误读、41 个留空），两项同时正确 60 张。本机约 11 秒；尚未测试 Render 的性能。这张图参与了裁切调试，因此结果不是独立测试集准确率，也不能推广到其他截图。图中两面佛、不相狐禅、洛天依、言和未收录，不能自动绑定。所有行仍需人工确认，未写入玩家库存或识别别名。
+
+可复测：`python benchmark_shards.py "原图路径"`。脚本只读 Supabase 图鉴，核验原图 SHA-256，输出 `artifacts/shards-ocr/report.html`、CSV 与 JSON；对照标注位于 `tests/shards_screenshot_reference.json`。`collaboration_name` 保留联动作品含义，OCR 别名应使用 `shikigami_aliases`，不能自动把未核实错字写入。
 
 本机真实 OCR 合成探测读对了清晰的「不知火」「花鸟卷」和 `1307`，但单独的 `0` 曾读为字母 `o`（低分），会留待人工确认；这不是游戏截图的准确率评测。可运行 `python tests/ocr_probe.py` 复测，本机探测脚本使用 Windows 的微软雅黑字体。
 
@@ -35,7 +49,7 @@ Render Blueprint 已启用 OCR，构建命令为 `pip install -r requirements-oc
 
 如果之前通过 Render 的 Web Service 手动创建服务，请在 Dashboard 的 Settings 中更新 Build Command；修改 `render.yaml` 不会自动覆盖手动服务设置。更新代码并重新部署后，识别仍在 Render 的服务器上执行，你的电脑不需要保持开机。目前已通过本机模型和流程验证，但尚未在 Render 上做实际内存、速度和长图压测；免费实例能否稳定处理你的长图仍需部署后验证。
 
-Mock 图鉴和上传结果都不是持久化数据库。Render 服务重启或重新部署后，运行时新增的本机文件及内存结果可能丢失；当前阶段请把它们当作测试资料。
+真实图鉴保存在 Supabase；上传结果及测试 Mock 图鉴仍为临时资料。Render 服务重启或重新部署后，运行时新增的本机文件及内存结果可能丢失。
 
 参考：[RapidOCR 官方使用文档](https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/)。
 
@@ -59,7 +73,7 @@ python -m pip --python .venv/Scripts/python.exe install -r requirements.txt
 
 也可以运行 `./start.ps1`。打开 **http://127.0.0.1:5000**。默认只监听本机，使用 Waitress；按 Ctrl+C 停止。
 
-如果数据库未连接，页面仍可试玩；正式抽奖会提示错误，不会假装保存成功。网站无需登录，知道链接的人都可以进入、创建和操作抽奖、查看正式抽奖记录。Discord 接入留待后续版本。
+数据库连接用于登录、游戏账号及正式记录；连接失败会提示错误，不会假装保存成功。网站页面和功能接口均需要登录，支持 Discord /login 一次性链接及网站密码。
 
 ## Render 部署
 

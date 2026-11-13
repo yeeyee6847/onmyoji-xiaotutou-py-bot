@@ -3,12 +3,13 @@ import unittest
 
 from app import create_app
 from test_lottery import MemoryStore, settings
+from auth_fixture import SignedInFixture
 
 
 class EditingTests(unittest.TestCase):
     def setUp(self):
         self.store = MemoryStore()
-        self.client = create_app(self.store).test_client()
+        self.client = create_app(self.store, auth_service=SignedInFixture()).test_client()
         html = self.client.get('/').get_data(as_text=True)
         self.token = re.search(r'name="csrf-token" content="([^"]+)"', html).group(1)
 

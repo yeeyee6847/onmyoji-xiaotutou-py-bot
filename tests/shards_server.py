@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import create_app
+from auth_fixture import SignedInFixture
 from waitress import serve
 
 
@@ -29,7 +30,7 @@ if __name__ == '__main__':
     directory = parent / ('shards-browser-' + uuid.uuid4().hex)
     directory.mkdir()
     try:
-        app = create_app(NoDatabase(), shard_options={'root': directory, 'inspector': inspector})
+        app = create_app(NoDatabase(), shard_options={'root': directory, 'inspector': inspector}, auth_service=SignedInFixture())
         print('Isolated shards preview: http://127.0.0.1:5013/shards', flush=True)
         serve(app, host='127.0.0.1', port=5013, threads=4)
     finally:

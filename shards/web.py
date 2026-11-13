@@ -10,27 +10,40 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, send_file, session
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file, session
 
 from lottery import DrawError
-from shards.catalog import MockCatalog
+from shards.catalog import MockCatalog, PostgresCatalog
 
 
-def create_blueprint(root=None, inspector=None):
+def create_blueprint(root=None, inspector=None, catalog=None):
     bp = Blueprint('shards', __name__)
+    mock_catalog = catalog is None and root is not None
+    catalog = catalog if catalog is not None else MockCatalog(root) if mock_catalog else PostgresCatalog()
     root = Path(root) if root else Path(__file__).resolve().parents[1] / 'instance' / 'shards'
-    catalog = MockCatalog(root)
     jobs, lock = {}, threading.RLock()
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='shards-ocr')
 
+    def owner_key():
+        if mock_catalog:
+            return session['csrf']
+        user = current_app.extensions['current_user']()
+        if not user:
+            raise DrawError('请先从右上角登录，或在 Discord 使用 /login。', 401)
+        return user['id']
+
     def admin():
+        if not mock_catalog:
+            if current_app.extensions['current_user']()['role']!='admin':
+                raise DrawError('此功能仅限 Admin。',403)
+            return
         if session.get('shards_role', 'user') != 'admin':
             raise DrawError('请先切换到 Admin 演示身分，再管理式神图鉴。', 403)
 
     def owned(job_id):
         with lock:
             job = jobs.get(job_id)
-            if not job or job['owner'] != session['csrf']:
+            if not job or job['owner'] != owner_key():
                 raise DrawError('这次识别不存在或已过期，请重新上传。', 404)
             return job
 
@@ -42,18 +55,26 @@ def create_blueprint(root=None, inspector=None):
     @bp.before_request
     def limits():
         request.max_content_length = 12 * 1024 * 1024
+        if not mock_catalog and (request.path.startswith('/api/shards/jobs/') or
+                                request.path in ('/api/shards/uploads', '/api/shards/demo')):
+            owner_key()
 
     @bp.get('/shards')
     def page():
-        return render_template('shards.html', csrf=session['csrf'])
+        return render_template('shards.html', csrf=session['csrf'], accounts_enabled=not mock_catalog)
 
     @bp.get('/api/shards/session')
     def info():
-        return jsonify(role=session.get('shards_role', 'user'), mock=True, database_written=False,
+        user = None if mock_catalog else current_app.extensions['current_user']()
+        return jsonify(role=user['role'] if user else session.get('shards_role', 'user'), mock=mock_catalog, database_written=False,
+                       authenticated=bool(user), display_name=user['display_name'] if user else None,
+                       catalog_source='mock' if mock_catalog else 'supabase', catalog_writable=mock_catalog or bool(user and user['role']=='admin'),
                        ocr_installed=bool(importlib.util.find_spec('rapidocr') and importlib.util.find_spec('onnxruntime')))
 
     @bp.post('/api/shards/role')
     def role():
+        if not mock_catalog:
+            raise DrawError('演示身份仅供 Mock 测试，不能更改真实账号权限。', 403)
         payload = request.get_json()
         if not isinstance(payload, dict) or payload.get('role') not in ('user', 'admin'):
             raise DrawError('演示身分只能是 user 或 admin。')
@@ -69,6 +90,11 @@ def create_blueprint(root=None, inspector=None):
         admin()
         return jsonify(catalog.save(request.get_json())), 201
 
+    @bp.get('/api/shards/catalog/next-order')
+    def next_order():
+        admin()
+        return jsonify(display_order=catalog.next_order() if not mock_catalog else len(catalog.list())+1)
+
     @bp.post('/api/shards/catalog/<item_id>')
     def edit_catalog(item_id):
         admin()
@@ -83,6 +109,7 @@ def create_blueprint(root=None, inspector=None):
     @bp.post('/api/shards/portraits')
     def portrait():
         admin()
+        if not mock_catalog:raise DrawError('正式图鉴请填写持久化的 HTTPS 图片网址。')
         from shards.vision import load_image
         file = request.files.get('image')
         if not file:
@@ -104,25 +131,27 @@ def create_blueprint(root=None, inspector=None):
             raise DrawError('找不到头像。', 404)
         return send_file(path, mimetype='image/webp')
 
-    def new_job(image, filename, source='upload', original_bytes=None):
+    def new_job(image, filename, source='upload', original_bytes=None, game_account=None):
+        owner = owner_key()
         with lock:
             now = time.monotonic()
             # 同一浏览器只保留最近一次识别；全站限制避免 Mock 占用无限内存。
-            expired = [key for key, item in jobs.items() if (item['owner'] == session['csrf'] or now - item['_time'] > 3600) and item['status'] not in ('queued', 'processing')]
+            expired = [key for key, item in jobs.items() if (item['owner'] == owner or now - item['_time'] > 3600) and item['status'] not in ('queued', 'processing')]
             for key in expired:
                 del jobs[key]
             if len(jobs) >= 12:
                 raise DrawError('识别任务已满，请稍后再试。', 429)
-            if any(item['owner'] == session['csrf'] and item['status'] in ('queued', 'processing') for item in jobs.values()):
+            if any(item['owner'] == owner and item['status'] in ('queued', 'processing') for item in jobs.values()):
                 raise DrawError('已有识别正在进行，请等待这次完成。', 409)
             if original_bytes is None:
                 stream = io.BytesIO()
                 image.save(stream, format='WEBP', quality=92)
                 original_bytes = stream.getvalue()
             mime = 'image/png' if original_bytes.startswith(b'\x89PNG') else 'image/jpeg' if original_bytes.startswith(b'\xff\xd8') else 'image/webp'
-            job = dict(id=str(uuid.uuid4()), owner=session['csrf'], _time=now, source=source,
+            job = dict(id=str(uuid.uuid4()), owner=owner, _time=now, source=source,
                        filename=filename[:120], width=image.width, height=image.height, status='queued',
-                       progress=0, total=0, rows=[], warning='', image=original_bytes, image_mime=mime, database_written=False)
+                       progress=0, total=0, rows=[], warning='', image=original_bytes, image_mime=mime,
+                       game_account=game_account, database_written=False)
             jobs[job['id']] = job
             return job
 
@@ -135,7 +164,17 @@ def create_blueprint(root=None, inspector=None):
             def progress(done, total):
                 with lock:
                     job.update(progress=done, total=total)
-            rows, warning = (inspector or inspect_image)(image, snapshot, manual, progress)
+            if inspector:
+                rows,warning=inspector(image,snapshot,manual,progress)
+            else:
+                from shards.samples import SampleLibrary
+                library=SampleLibrary()
+                try:references=library.references() if not mock_catalog else []
+                except DrawError:references=[]
+                rows,warning=inspect_image(image,snapshot,manual,progress,references=references)
+                if not mock_catalog:
+                    try:library.capture(job['owner'],job['id'],rows)
+                    except DrawError:warning=(warning+' 识别已完成，但本次头像样本未保存。').strip()
             with lock:
                 job.update(status='done', rows=rows, warning=warning, progress=len(rows), total=len(rows))
         except Exception as error:
@@ -145,6 +184,7 @@ def create_blueprint(root=None, inspector=None):
     @bp.post('/api/shards/uploads')
     def upload():
         from shards.vision import load_image
+        account = None if mock_catalog else current_app.extensions['game_accounts'].owned(owner_key(), request.form.get('game_account_id'))
         file = request.files.get('image')
         if not file:
             raise DrawError('请上传从游戏导出的碎片长图。')
@@ -160,7 +200,7 @@ def create_blueprint(root=None, inspector=None):
                     raise ValueError
             except (KeyError, TypeError, ValueError):
                 raise DrawError('切格范围应在 0–100%，列数 2–8、行数 1–50，且不超过 200 格。')
-        job = new_job(image, file.filename or '碎片长图', original_bytes=original_bytes)
+        job = new_job(image, file.filename or '碎片长图', original_bytes=original_bytes, game_account=account)
         executor.submit(process, job, manual, catalog.list())
         return jsonify(public(job)), 202
 
@@ -203,6 +243,8 @@ def create_blueprint(root=None, inspector=None):
             raise DrawError('核对资料格式不正确。')
         with lock:
             job = owned(job_id)
+            if job['database_written']:
+                raise DrawError('这份清单已经保存，修改请重新上传。', 409)
             if job['status'] != 'done':
                 raise DrawError('请等待识别完成。', 409)
             row = next((item for item in job['rows'] if item['id'] == row_id), None)
@@ -212,12 +254,15 @@ def create_blueprint(root=None, inspector=None):
             if type(included) is not bool or type(confirmed) is not bool:
                 raise DrawError('核对状态格式不正确。')
             item_id, quantity = payload.get('shikigami_id'), payload.get('quantity')
+            target = payload.get('target', row.get('target', 'offers'))
+            if target not in ('offers','wants','unknown') or (included and confirmed and target == 'unknown'):
+                raise DrawError('请选择可提供或想要的碎片。')
             if included:
                 if (item_id is not None or confirmed) and not any(item['id'] == item_id for item in catalog.list()):
                     raise DrawError('请先选择图鉴内的式神。')
                 if (quantity is not None or confirmed) and (type(quantity) is not int or not 0 <= quantity <= 99999):
                     raise DrawError('碎片数量应为 0–99999 的整数。')
-            row.update(shikigami_id=item_id, quantity=quantity, included=included, confirmed=confirmed if included else False)
+            row.update(shikigami_id=item_id, quantity=quantity, target=target, included=included, confirmed=confirmed if included else False)
             return jsonify(copy.deepcopy(row))
 
     @bp.get('/api/shards/jobs/<job_id>/export')
@@ -233,13 +278,27 @@ def create_blueprint(root=None, inspector=None):
                 item = records.get(row['shikigami_id'])
                 if not item:
                     raise DrawError('图鉴有式神被删除，请重新核对。', 409)
-                if item['id'] in seen:
+                target = row.get('target', 'offers')
+                if target not in ('offers','wants'):
+                    raise DrawError('请先确认记录属于可提供还是想要的碎片。', 409)
+                key = (target,item['id'])
+                if key in seen:
                     raise DrawError(f'「{item["name"]}」重复了，请更正或排除重复条目，不会自动累加数量。', 409)
-                seen.add(item['id'])
-                items.append(dict(shikigami_id=item['id'], name=item['name'], rarity=item['rarity'], quantity=row['quantity']))
+                seen.add(key)
+                items.append(dict(shikigami_id=item['id'], name=item['name'], rarity=item['rarity'], target=target, quantity=row['quantity']))
             payload = dict(version=1, generated_at=datetime.now(timezone.utc).isoformat(), source=job['source'],
-                           database_written=False, items=items)
+                           database_written=job['database_written'], game_account=job['game_account'], items=items)
             body = json.dumps(payload, ensure_ascii=False, indent=2).encode('utf-8')
         return send_file(io.BytesIO(body), mimetype='application/json', as_attachment=True, download_name='shards-reviewed.json')
+
+    @bp.post('/api/shards/jobs/<job_id>/save')
+    def save(job_id):
+        if mock_catalog:
+            raise DrawError('Mock 模式不能保存到数据库。', 403)
+        with lock:
+            job = owned(job_id)
+            result = current_app.extensions['game_accounts'].save_import(owner_key(), job)
+            job['database_written'] = True
+            return jsonify(**result, game_account=job['game_account'])
 
     return bp

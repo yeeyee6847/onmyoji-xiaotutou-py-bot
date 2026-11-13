@@ -10,6 +10,8 @@ CREATE SCHEMA IF NOT EXISTS onmyoji_shards;
 CREATE TABLE IF NOT EXISTS onmyoji_shards.shikigami (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL CHECK (name = btrim(name) AND char_length(name) BETWEEN 1 AND 40),
+    name_simplified text CHECK (name_simplified IS NULL OR (name_simplified = btrim(name_simplified) AND char_length(name_simplified) BETWEEN 1 AND 40)),
+    display_order integer CHECK (display_order > 0),
     rarity text NOT NULL CHECK (rarity IN ('SSR', 'SP', 'UR', 'COLLAB')),
     image_path text CHECK (image_path IS NULL OR char_length(btrim(image_path)) > 0),
     collaboration_name text,
@@ -19,6 +21,8 @@ CREATE TABLE IF NOT EXISTS onmyoji_shards.shikigami (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS shikigami_name_unique
     ON onmyoji_shards.shikigami (lower(name));
+CREATE UNIQUE INDEX IF NOT EXISTS shikigami_display_order_unique
+    ON onmyoji_shards.shikigami (display_order);
 
 -- 繁简体、其他名字及人工核对后认可的 OCR 别名。
 -- 名字与别名跨两张表的冲突，仍需后端统一规范化后检查。

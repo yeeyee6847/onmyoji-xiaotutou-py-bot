@@ -1,0 +1,12 @@
+<section id="game-account-manager" class="game-account-manager paper">
+  <label class="field" for="game-account-select">選擇遊戲帳號<select id="game-account-select"><option value="">載入中…</option></select></label>
+  <p id="game-account-hint" class="small-note">請選擇這張碎片長圖所屬的遊戲帳號。</p>
+  <details><summary>＋ 新增遊戲帳號</summary>
+    <form id="game-account-form">
+      <label class="field">遊戲帳號名字<input name="nickname" maxlength="80" required placeholder="例如：小禿頭的一號帳"></label>
+      <label class="field">伺服器（選填）<input name="server_name" maxlength="80" value="亞洲" placeholder="例如：亞洲"></label>
+      <button class="btn secondary" type="submit">新增帳號</button>
+    </form>
+  </details>
+  <p id="game-account-error" class="inline-message" role="alert" hidden></p>
+</section>

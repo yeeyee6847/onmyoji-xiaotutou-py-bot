@@ -6,6 +6,7 @@ from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 
 from app import create_app
+from auth_fixture import SignedInFixture
 from lottery import DrawError, new_draw, public_state, reveal_card, select_card, start_draw
 
 
@@ -131,7 +132,7 @@ class LotteryTests(unittest.TestCase):
 class ApiTests(unittest.TestCase):
     def setUp(self):
         self.store = MemoryStore()
-        self.app = create_app(self.store)
+        self.app = create_app(self.store, auth_service=SignedInFixture())
         self.app.testing = True
         self.client = self.app.test_client()
         html = self.client.get("/").get_data(as_text=True)

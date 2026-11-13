@@ -7,18 +7,31 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app import create_app, server_address
+from auth_fixture import SignedInFixture
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_anonymous_pages_and_apis_require_login(self):
+        client = create_app().test_client()
+        for path in ('/', '/shards', '/account'):
+            response = client.get(path)
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(response.headers['Location'], '/login')
+        for path in ('/api/draws', '/api/shards/catalog', '/api/health'):
+            self.assertEqual(client.get(path).status_code, 401)
+        self.assertEqual(client.post('/api/draws', json={}).status_code, 401)
+        for path in ('/login', '/static/account.js', '/static/account.css', '/healthz'):
+            self.assertEqual(client.get(path).status_code, 200)
+
     def test_render_requires_persistent_session_secret(self):
         with patch.dict(os.environ, {"RENDER": "true", "FLASK_SECRET_KEY": ""}):
             with self.assertRaisesRegex(RuntimeError, "FLASK_SECRET_KEY"):
                 create_app()
 
-    def test_public_pages_and_lottery_need_no_login(self):
+    def test_signed_in_pages_and_lottery(self):
         store = SimpleNamespace(health=lambda: True, list=lambda: [])
         with patch.dict(os.environ, {"RENDER": "true", "FLASK_SECRET_KEY": "test-session-key"}):
-            app = create_app(store)
+            app = create_app(store, auth_service=SignedInFixture())
         client = app.test_client()
         for path in ("/", "/api/draws", "/api/health", "/static/app.js"):
             with self.subTest(path=path):
@@ -26,7 +39,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertNotIn("WWW-Authenticate", response.headers)
                 response.close()
-        # 同一位匿名访客可以取得会话并实际完成一次试玩。
+        # 已登录访客可以完成一次试玩。
         client = app.test_client()
         response = client.get("/", base_url="https://localhost")
         self.assertEqual(response.status_code, 200)
@@ -50,7 +63,8 @@ class DeploymentTests(unittest.TestCase):
         with patch.dict(os.environ, {"RENDER": "true", "FLASK_SECRET_KEY": "test-session-key", "ADMIN_PASSWORD": "old-setting"}):
             app = create_app()
         response = app.test_client().get("/", base_url="https://localhost")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers['Location'], '/login')
         self.assertNotIn("WWW-Authenticate", response.headers)
 
     def test_healthcheck_has_no_authentication_or_cookie(self):

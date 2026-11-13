@@ -1,16 +1,17 @@
 import os
 import secrets
 import uuid
+from datetime import timedelta
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, session
+from flask import Flask, jsonify, redirect, render_template, request, session
 from werkzeug.exceptions import HTTPException
 
 from lottery import DrawError, new_draw, public_state, reveal_card, select_card, start_draw, update_draw
 from storage import PostgresStore, PracticeStore
 
 
-def create_app(store=None, shard_options=None):
+def create_app(store=None, shard_options=None, auth_service=None, game_accounts=None):
     app = Flask(__name__)
     on_render = os.getenv("RENDER") == "true"
     if on_render and not os.getenv("FLASK_SECRET_KEY"):
@@ -29,7 +30,8 @@ def create_app(store=None, shard_options=None):
         secret_key = secret_path.read_text(encoding="utf-8")
     app.config.update(SECRET_KEY=secret_key,
                       MAX_CONTENT_LENGTH=128 * 1024, SESSION_COOKIE_HTTPONLY=True,
-                      SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_SECURE=on_render)
+                      SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_SECURE=on_render,
+                      PERMANENT_SESSION_LIFETIME=timedelta(days=7))
     database = store if store is not None else PostgresStore()
     practice = PracticeStore()
 
@@ -39,6 +41,18 @@ def create_app(store=None, shard_options=None):
             return None
         if "csrf" not in session:
             session["csrf"] = secrets.token_hex(24)
+        public = (request.endpoint == 'static' or request.path == '/login'
+                  or request.path in ('/api/auth/me', '/api/auth/discord-link', '/api/auth/password-login'))
+        if not public:
+            user = app.extensions['current_user']()
+            if not user:
+                if request.path.startswith('/api/'):
+                    return jsonify(error='请先登录。', redirect='/login'), 401
+                return redirect('/login')
+            if not user['password_set'] and request.path not in ('/account', '/api/auth/password', '/api/auth/logout'):
+                if request.path.startswith('/api/'):
+                    return jsonify(error='请先设置网站密码。', redirect='/account'), 403
+                return redirect('/account')
         if request.method in ("POST", "PUT", "PATCH", "DELETE"):
             if not secrets.compare_digest(request.headers.get("X-CSRF-Token", ""), session["csrf"]):
                 raise DrawError("页面验证已失效，请刷新页面后重试。", 403)
@@ -49,7 +63,8 @@ def create_app(store=None, shard_options=None):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "same-origin"
         response.headers["Cache-Control"] = "no-store"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
+        image_sources = "'self' data: https:" if request.path.startswith('/shards') or request.path in ('/my-fragments','/search-fragments','/admin/samples','/trades') else "'self' data:"
+        response.headers["Content-Security-Policy"] = f"default-src 'self'; script-src 'self'; style-src 'self'; img-src {image_sources}; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
         return response
 
     @app.errorhandler(DrawError)
@@ -127,6 +142,16 @@ def create_app(store=None, shard_options=None):
             state = database.mutate(draw_id, operation)
         return jsonify(public_state(state))
 
+    from auth_service import AuthService
+    from auth_web import register_auth
+    register_auth(app, auth_service if auth_service is not None else AuthService())
+    from shards.accounts import GameAccounts
+    from shards.accounts_web import register_accounts
+    register_accounts(app, game_accounts if game_accounts is not None else GameAccounts())
+    from shards.features_web import register_features
+    register_features(app)
+    from shards.trades_web import register_trades
+    register_trades(app)
     from shards.web import create_blueprint
     app.register_blueprint(create_blueprint(**(shard_options or {})))
     return app

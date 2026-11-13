@@ -4,3 +4,4 @@ psycopg[binary]>=3.2,<4
 waitress>=3,<4
 Pillow>=11,<13
 opencv-python-headless>=4.10,<5
+opencc-python-reimplemented>=0.1.7,<0.2
