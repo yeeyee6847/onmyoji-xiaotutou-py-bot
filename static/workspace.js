@@ -62,6 +62,19 @@
     $('#fragment-controls').hidden=$('#fragment-results').hidden=false;$('#account-control').hidden=mode!=='mine';$('#manual-section').hidden=mode!=='mine';
     for(const r of catalog){const o=node('option',`${r.name} · ${r.rarity}`);o.value=r.id;$('#workspace-shikigami').append(o);}ShikigamiPicker.attach($('#workspace-shikigami'),catalog);
     for(const r of accounts){const o=node('option',`${r.nickname} · ${r.server_name}`);o.value=r.id;$('#workspace-account').append(o);}
+    if(mode==='mine'){
+      const updateAccount=()=>{$('#manual-account-selected').textContent=$('#workspace-account').value?'匯入至：'+$('#workspace-account').selectedOptions[0].textContent:'請先在上方選擇要匯入的遊戲帳號。';};
+      $('#workspace-account').onchange=()=>{updateAccount();results().catch(e=>message(e.message));};
+      if(accounts.length===1)$('#workspace-account').value=accounts[0].id;updateAccount();
+      $('#manual-account-form').onsubmit=async event=>{
+        event.preventDefault();const form=event.currentTarget,button=form.querySelector('button'),notice=$('#manual-account-message');button.disabled=true;notice.hidden=true;
+        try{
+          const account=await api('/api/game-accounts',Object.fromEntries(new FormData(form)));
+          const option=node('option',`${account.nickname} · ${account.server_name}`);option.value=account.id;$('#workspace-account').append(option);$('#workspace-account').value=account.id;
+          updateAccount();form.reset();$('#manual-account-create').open=false;message('已新增並選取遊戲帳號，可以直接匯入碎片。');await results();
+        }catch(e){notice.textContent=e.message;notice.hidden=false;}finally{button.disabled=false;}
+      };
+    }
     if(!accounts.length&&mode==='mine')message('請先到「遊戲帳號」新增帳號，再人工匯入。');
     const preset=new URLSearchParams(location.search).get('shikigami_id');if(preset)$('#workspace-shikigami').value=preset;
     $('#workspace-search').onclick=()=>results().catch(e=>message(e.message));

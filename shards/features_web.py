@@ -28,7 +28,7 @@ def register_features(app):
         return jsonify(service.search(shikigami_id=request.args.get('shikigami_id') or None,
             target=request.args.get('target') or None,server=request.args.get('server',''),
             rarity=request.args.get('rarity') or None,
-            mine=user()['id'] if mine else None,account=request.args.get('game_account_id') if mine else None))
+            mine=user()['id'] if mine else None,account=request.args.get('game_account_id') or None))
     @bp.get('/api/fragments/totals')
     def totals():return jsonify(service.totals())
     @bp.post('/api/fragments')

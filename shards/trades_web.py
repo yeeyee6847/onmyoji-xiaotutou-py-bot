@@ -8,6 +8,8 @@ def register_trades(app):
     def user():return current_app.extensions['current_user']()['id']
     @bp.get('/trades')
     def page():return render_template('trades.html',csrf=session['csrf'])
+    @bp.get('/api/trades/partners')
+    def partners():return jsonify(service.partners(user()))
     @bp.get('/api/trades')
     def listing():return jsonify(service.listing(user(),request.args.get('mine')=='1',request.args.get('id'),request.args.get('shikigami_id')))
     @bp.post('/api/trades')

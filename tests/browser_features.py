@@ -39,6 +39,16 @@ def main():
             page.on('pageerror',lambda e:errors.append(str(e)))
             origin='http://127.0.0.1:5016'
             page.goto(origin+'/my-fragments');page.wait_for_selector('.manual-shikigami')
+            page.locator('#manual-account-create summary').click()
+            page.locator('#manual-account-form input[name=nickname]').fill('Main UI account')
+            page.locator('#manual-account-form button').click()
+            page.wait_for_selector('#manual-account-message:visible')
+            page.locator('#manual-account-form input[name=nickname]').fill(prefix+' extra')
+            assert page.locator('#manual-account-form input[name=server_name]').input_value()=='亞洲'
+            page.locator('#manual-account-form button').click()
+            page.wait_for_function("() => !document.querySelector('#manual-account-create').open")
+            assert prefix+' extra' in page.locator('#manual-account-selected').inner_text()
+            assert page.locator('#workspace-account').input_value()!=account['id']
             page.locator('#workspace-account').select_option(account['id'])
             page.locator('#manual-rows .picker-launch').click()
             page.locator('.picker-dialog input').fill(item.get('name_simplified') or item['name'])
@@ -53,6 +63,9 @@ def main():
             page.goto(origin+'/shards#catalog');page.wait_for_selector('.catalog-card')
             page.locator('.catalog-card').filter(has=page.get_by_role('heading',name=item['name'],exact=True)).locator('.catalog-avatar').click()
             page.wait_for_function("() => document.querySelector('.owners-content')?.textContent.includes('Main UI account')")
+            owner_link=page.locator('.owners-content a').filter(has_text='Main UI account')
+            assert 'other_account_id='+account['id'] in owner_link.get_attribute('href')
+            assert 'shikigami_id='+item['id'] in owner_link.get_attribute('href')
             page.locator('#fragment-owners-dialog button').click()
             user['role']='admin';page.reload();page.wait_for_selector('#add-shikigami:visible')
             page.locator('#add-shikigami').click();page.wait_for_selector('#catalog-dialog[open]')

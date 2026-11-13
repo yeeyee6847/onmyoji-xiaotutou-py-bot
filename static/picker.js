@@ -9,6 +9,7 @@ window.ShikigamiPicker = (() => {
       const b=element('button');b.type='button';b.className='picker-option';
       if(r.image){const img=element('img');img.src=r.image;img.alt='';img.loading='lazy';b.append(img);}
       b.append(element('strong',r.name),element('small',`${r.rarity} · ${r.name_simplified||''}`));
+      if(r.available!==undefined)b.append(element('small',`可用 ${r.available} 片`));
       b.addEventListener('click',()=>{dialog.close();choose(r);});return b;
     }));
     if(!filtered.length)list.append(element('p','沒有符合的式神。'));
@@ -27,7 +28,7 @@ window.ShikigamiPicker = (() => {
   }
   function attach(select,catalog){
     const b=element('button','搜尋／按 Rarity 選擇');b.type='button';b.className='picker-launch';
-    b.onclick=()=>open(catalog,select.value,r=>{select.value=r.id;select.dispatchEvent(new Event('change',{bubbles:true}));});
+    b.onclick=()=>open(typeof catalog==='function'?catalog():catalog,select.value,r=>{select.value=r.id;select.dispatchEvent(new Event('change',{bubbles:true}));});
     select.after(b);return b;
   }
   return {open,attach};

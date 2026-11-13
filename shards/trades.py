@@ -10,6 +10,19 @@ from storage import PostgresStore
 class Trades:
     def __init__(self,store=None):self.store=store if store is not None else PostgresStore()
 
+    def partners(self, player):
+        with self.store.connection() as c:
+            rows=c.execute('''SELECT a.id::text,a.nickname,a.server_name,p.display_name
+             FROM onmyoji_shards.game_accounts a JOIN onmyoji_shards.players p ON p.id=a.player_id
+             WHERE a.is_active AND p.is_active AND a.player_id<>%s
+             AND EXISTS (SELECT 1 FROM onmyoji_shards.fragment_current f
+              JOIN onmyoji_shards.shikigami s ON s.id=f.shikigami_id AND s.is_active
+              WHERE f.game_account_id=a.id AND f.target='offers' AND f.quantity>coalesce(
+               (SELECT sum(r.quantity) FROM onmyoji_shards.trade_reservations r WHERE
+                r.game_account_id=a.id AND r.shikigami_id=f.shikigami_id AND r.target='offers'),0))
+             ORDER BY p.display_name,a.nickname,a.id''',(player,)).fetchall()
+        return [dict(id=r[0],nickname=r[1],server_name=r[2],player_name=r[3]) for r in rows]
+
     def discord_player(self,discord_id):
         with self.store.connection() as c:
             row=c.execute("SELECT p.id::text FROM onmyoji_shards.players p JOIN onmyoji_shards.player_identities i ON i.player_id=p.id WHERE i.provider='discord' AND i.external_subject=%s AND p.is_active",(str(discord_id),)).fetchone()

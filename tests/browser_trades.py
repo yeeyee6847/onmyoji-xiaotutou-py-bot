@@ -31,15 +31,37 @@ def main():
         with sync_playwright() as p:
             browser=p.chromium.launch(channel='msedge',headless=True);page=browser.new_page(viewport=dict(width=1440,height=1050));errors=[]
             page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept())
-            origin='http://127.0.0.1:5017';page.goto(origin+'/trades')
-            page.wait_for_selector('.trade-shikigami');page.locator('#trade-own').select_option(accounts[0]);page.locator('#trade-other').select_option(accounts[1])
+            origin='http://127.0.0.1:5017';page.goto(origin+'/trades?other_account_id='+accounts[1]+'&shikigami_id='+items[1][0])
+            page.wait_for_function("() => document.querySelectorAll('.trade-shikigami option').length === 4")
+            assert page.locator('#trade-own').input_value()==accounts[0]
+            assert page.locator('#trade-other').input_value()==accounts[1]
+            assert page.locator('.trade-shikigami').nth(1).input_value()==items[1][0]
+            page.locator('#trade-other-search').fill('not-a-player')
+            assert page.locator('#trade-other option').count()==2  # Preserve selected account.
+            page.locator('#trade-other').select_option('')
+            page.locator('#trade-other-search').fill('Trade UI account 1')
+            assert page.locator('#trade-other option').count()==2
+            page.locator('#trade-other').select_option(accounts[1])
+            page.wait_for_function("() => document.querySelectorAll('.trade-shikigami option').length === 4 && !document.querySelector('#trade-submit').disabled")
             for index in range(2):
-                page.locator('.trade-shikigami').nth(index).select_option(items[index][0]);page.locator('.trade-quantity').nth(index).fill('3')
+                assert page.locator('.trade-shikigami').nth(index).locator('option').count()==2
+                page.locator('.trade-shikigami').nth(index).select_option(items[index][0])
+                assert '10' in page.locator('.trade-stock').nth(index).inner_text()
+                assert page.locator('.trade-quantity').nth(index).get_attribute('max')=='10'
+                page.locator('.trade-quantity').nth(index).fill('3')
+            page.locator('.picker-launch').first.click()
+            assert page.locator('.picker-option').count()==1
+            assert '10' in page.locator('.picker-option').inner_text()
+            page.locator('.picker-option').click()
+            page.locator('.trade-quantity').first.fill('11');page.locator('#trade-submit').click()
+            page.wait_for_function("() => document.querySelector('#trade-message').textContent.includes('正整數')")
+            page.locator('.trade-quantity').first.fill('3')
             page.locator('#trade-submit').click();page.wait_for_function("() => document.querySelector('#trade-list').textContent.includes('等待接受')")
             # Mark synthetic notification events delivered; no actual Discord messages in browser tests.
             with PostgresStore().connection() as c:c.execute("UPDATE onmyoji_shards.trade_outbox SET status='sent' WHERE trade_id IN (SELECT id FROM onmyoji_shards.trades WHERE requester_id=%s)",(players[0],))
             active['id']=players[1];page.reload();page.wait_for_selector('#trade-list button')
             page.get_by_role('button',name='接受交換',exact=True).click();page.wait_for_function("() => document.querySelector('#trade-list').textContent.includes('已預留')")
+            page.wait_for_function("() => document.querySelector('.trade-shikigami').textContent.includes('可用 7 片')")
             page.get_by_role('button',name='我已實際完成交換',exact=True).click();page.wait_for_function("() => document.querySelector('#trade-list').textContent.includes('對方確認：已完成')")
             active['id']=players[0];page.reload();page.get_by_role('button',name='我已實際完成交換',exact=True).click()
             page.wait_for_function("() => document.querySelector('#trade-list').textContent.includes('雙方已完成')")
@@ -49,7 +71,7 @@ def main():
             page.set_viewport_size(dict(width=390,height=844));assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             Path('artifacts').mkdir(exist_ok=True);page.screenshot(path='artifacts/trades-mobile.png')
             assert not errors,errors;browser.close()
-        print('Two-party proposal, accept, separate completion confirmations, 10 to 7 deduction, mobile and JS checks passed.')
+        print('Account search, deep link, owned-only picker and quantities, excess validation, two-party lifecycle, mobile and JS checks passed.')
     finally:
         server.task_dispatcher.shutdown(timeout=10);server.close()
         with PostgresStore().connection() as c:

@@ -314,10 +314,15 @@ async function showFragmentOwners(item){
   if(!dialog){dialog=node('dialog');dialog.id='fragment-owners-dialog';const close=node('button','關閉');close.type='button';close.onclick=()=>dialog.close();dialog.append(close,node('h2'),node('div','owners-content'));document.body.append(dialog);}
   $('h2',dialog).textContent=item.name;const content=$('.owners-content',dialog);content.textContent='載入中…';dialog.showModal();
   try{
-    const rows=await api('/api/fragments?shikigami_id='+item.id);content.replaceChildren();
+    const rows=await api('/api/fragments?shikigami_id='+item.id);content.replaceChildren();content.append(node('p','','點擊玩家／遊戲帳號，可帶入帳號與式神提出交換。'));
     for(const [target,title] of [['offers','誰可提供'],['wants','誰需要']]){
       content.append(node('h3','',title));const list=node('ul');const entries=rows.filter(r=>r.target===target);
-      for(const r of entries)list.append(node('li','',`${r.player_name} · ${r.nickname} · ${r.server_name}：${r.quantity}`));
+      for(const r of entries){
+        const entry=node('li');const person=node('a','',`${r.player_name} · ${r.nickname}`);
+        person.href='/trades?'+new URLSearchParams({other_account_id:r.game_account_id,shikigami_id:item.id,direction:target==='offers'?'receive':'give'});
+        entry.append(person,document.createTextNode(` · ${r.server_name}：${r.quantity} 片 `));
+        list.append(entry);
+      }
       if(!entries.length)list.append(node('li','','尚無記錄'));content.append(list);
     }
     const link=node('a','','到搜索頁查看');link.href='/search-fragments?shikigami_id='+item.id;content.append(link);
