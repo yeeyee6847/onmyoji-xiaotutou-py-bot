@@ -20,3 +20,26 @@
 .game-account-manager{padding:16px;margin-bottom:14px}.game-account-manager .field{display:grid;gap:8px}.game-account-manager select{width:100%}.game-account-manager details{margin-top:12px}.game-account-manager form{display:grid;gap:12px;margin-top:12px}.game-account-manager .small-note{margin-top:8px}.game-account-manager button{justify-self:start}
 
 @media(max-width:600px){.rail nav{gap:2px}.rail-item{padding:5px 4px;font-size:8px;min-width:0}.rail-item>span{font-size:17px}.rail{padding:6px 5px}}
+
+/* Keep navigation names readable instead of relying on tiny glyphs. */
+.rail-item .nav-icon{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.rail-item>.nav-label{font:inherit;line-height:1.4}
+@media(min-width:601px) and (max-width:950px){
+ .rail{width:180px;align-items:stretch;padding:25px 12px}.rail nav{margin-top:24px}
+ .rail-item{font-size:12px;gap:10px;padding:13px 10px;min-height:48px}.app-shell{margin-left:180px}
+ .rail .wordmark{font-size:20px}.rail .wordmark>span:last-child{display:block}
+ .toast{left:calc(50% + 90px)}
+}
+@media(max-width:600px){
+ .rail{inset:auto 0 0;width:100%;height:auto;padding:8px 8px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #526459;background:#24362ff7;align-items:stretch}
+ .rail .wordmark,.rail-label,.rail-poem,.raffle-link,.rail-version{display:none}
+ .rail nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));width:100%;gap:4px;margin:0}
+ .rail-item{display:flex;flex-direction:column;justify-content:center;gap:6px;padding:8px 2px;min-height:62px;min-width:0;font-size:12px;font-weight:500;color:#d1dcd2;text-align:center;border-radius:9px}
+ .rail-item .nav-icon{width:23px;height:23px}.rail-item>.nav-label{font-size:12px;line-height:1.2;white-space:nowrap}
+ .rail-item.active{background:#e7eddc;color:#253f32;border-color:#e7eddc;box-shadow:0 2px 7px #0002}
+ .rail-item[data-tab=upload]{order:1}.rail-item[href="/my-fragments"]{order:2}.rail-item[href="/search-fragments"]{order:3}.rail-item[href="/trades"]{order:4}
+ .rail-item[data-tab=catalog]{order:5}.rail-item[data-tab=review]{order:6}.rail-item[href="/admin/samples"]{order:7}
+ .rail-item small{display:none}.app-shell{margin-left:0;margin-bottom:calc(156px + env(safe-area-inset-bottom))}
+ .toast{left:50%;bottom:calc(164px + env(safe-area-inset-bottom))}
+ .app-header{padding:0 16px;gap:10px}.crumb{min-width:0}#account-link{max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+}
