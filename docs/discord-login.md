@@ -43,6 +43,8 @@ python discord_bot.py
 
 ## 动态网站地址与部署
 
+默认 `requirements.txt` 已包含 `discord.py`。Render Bot 服务的 Build Command 使用 `pip install -r requirements.txt`（也兼容 `requirements-bot.txt`），Start Command 使用 `python discord_bot.py`。修改依赖后需要重新构建部署，仅 Restart 不会安装新增依赖。网站服务仍使用 `python app.py`，Bot 进程应作为单独 Background Worker 运行，避免网站没有 HTTP 端口。
+
 每次 `/login` 都读取当前运行环境，不在代码写死域名：
 
 1. 若设置 `WEBSITE_URL`，优先使用它（适合 Bot 与网站分别部署）。
