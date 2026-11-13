@@ -62,9 +62,20 @@ def main():
             active['id']=players[1];page.reload();page.wait_for_selector('#trade-list button')
             page.get_by_role('button',name='接受交換',exact=True).click();page.wait_for_function("() => document.querySelector('#trade-list').textContent.includes('已預留')")
             page.wait_for_function("() => document.querySelector('.trade-shikigami').textContent.includes('可用 7 片')")
+            page.goto(origin+'/trade-records');page.wait_for_selector('#records-list article')
+            assert page.locator('#records-status option').count()==1
+            assert 'Trade UI account 0' in page.locator('#records-list').inner_text()
+            assert 'Trade UI account 1' in page.locator('#records-list').inner_text()
+            page.set_viewport_size(dict(width=390,height=844));assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+            page.goto(origin+'/trades');page.wait_for_selector('#trade-list button')
             page.get_by_role('button',name='我已實際完成交換',exact=True).click();page.wait_for_function("() => document.querySelector('#trade-list').textContent.includes('對方確認：已完成')")
             active['id']=players[0];page.reload();page.get_by_role('button',name='我已實際完成交換',exact=True).click()
-            page.wait_for_function("() => document.querySelector('#trade-list').textContent.includes('雙方已完成')")
+            page.wait_for_function("() => document.querySelector('#trade-message').textContent.includes('交換已完成') && !document.querySelector('#trade-list').textContent.includes('雙方已完成')")
+            page.goto(origin+'/trade-records');page.wait_for_function("() => document.querySelector('#records-message').textContent !== '載入中…'")
+            assert 'Trade UI account 0' not in page.locator('#records-list').inner_text()
+            active['role']='admin';page.reload();page.locator('#records-status').select_option('completed')
+            page.wait_for_function("() => document.querySelector('#records-list').textContent.includes('Trade UI account 0')")
+            assert '已完成交換' in page.locator('#records-list').inner_text()
             with PostgresStore().connection() as c:
                 qty=c.execute("SELECT quantity FROM onmyoji_shards.fragment_current WHERE game_account_id=ANY(%s::uuid[]) AND target='offers'",(accounts,)).fetchall()
                 assert [r[0] for r in qty]==[7,7]

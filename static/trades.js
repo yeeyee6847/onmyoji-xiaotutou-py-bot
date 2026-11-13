@@ -62,7 +62,7 @@
     const controls=node('div');controls.className='tools';
     for(const [action,label] of actions){const button=node('button',label);button.onclick=async()=>{
      if(['confirm','cancel','reject'].includes(action)&&!window.confirm(action==='confirm'?'確認你已在遊戲中完成本次交換？雙方都確認後會扣除庫存。':label+'？'))return;
-     button.disabled=true;try{await api(`/api/trades/${r.id}/${action}`,{});message('交換狀態已更新。');await Promise.all([load(),loadStock()]);}catch(e){message(e.message);button.disabled=false;}
+     button.disabled=true;try{const result=await api(`/api/trades/${r.id}/${action}`,{});message(result.status==='completed'?'交換已完成，完成紀錄僅 Admin 可查看。':'交換狀態已更新。');await Promise.all([load(),loadStock()]);}catch(e){message(e.message);button.disabled=false;}
     };controls.append(button);}card.append(controls);
    }return card;
   }));

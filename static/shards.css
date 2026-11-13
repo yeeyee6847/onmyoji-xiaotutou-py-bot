@@ -38,7 +38,7 @@
  .rail-item .nav-icon{width:23px;height:23px}.rail-item>.nav-label{font-size:12px;line-height:1.2;white-space:nowrap}
  .rail-item.active{background:#e7eddc;color:#253f32;border-color:#e7eddc;box-shadow:0 2px 7px #0002}
  .rail-item[data-tab=upload]{order:1}.rail-item[href="/my-fragments"]{order:2}.rail-item[href="/search-fragments"]{order:3}.rail-item[href="/trades"]{order:4}
- .rail-item[data-tab=catalog]{order:5}.rail-item[data-tab=review]{order:6}.rail-item[href="/admin/samples"]{order:7}
+ .rail-item[data-tab=catalog]{order:5}.rail-item[data-tab=review]{order:6}.rail-item[href="/admin/samples"]{order:7}.rail-item[href="/trade-records"]{order:8}
  .rail-item small{display:none}.app-shell{margin-left:0;margin-bottom:calc(156px + env(safe-area-inset-bottom))}
  .toast{left:50%;bottom:calc(164px + env(safe-area-inset-bottom))}
  .app-header{padding:0 16px;gap:10px}.crumb{min-width:0}#account-link{max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}

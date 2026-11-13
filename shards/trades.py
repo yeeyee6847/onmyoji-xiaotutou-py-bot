@@ -128,27 +128,38 @@ class Trades:
             c.execute('UPDATE onmyoji_shards.trades SET status=%s,requester_confirmed=%s,recipient_confirmed=%s,updated_at=now() WHERE id=%s',(status,ca,cb,identity))
         return dict(id=identity,status=status)
 
-    def listing(self,player=None,mine=False,identity=None,shikigami_id=None):
+    def listing(self,player=None,mine=False,identity=None,shikigami_id=None,*,admin=False,record_status=None,page=1):
         conditions=[];args=[]
-        if identity:conditions.append('t.id=%s');args.append(account_id(identity))
+        if record_status is not None:
+            if record_status not in ('accepted','completed'):raise DrawError('无效的交换记录分类。')
+            if record_status=='completed' and not admin:raise DrawError('只有 Admin 可以查看已完成的交换记录。',403)
+            if type(page) is not int or not 1<=page<=100000:raise DrawError('无效的页数。')
+            conditions.append('t.status=%s');args.append(record_status)
+        elif identity:conditions.append('t.id=%s');args.append(account_id(identity))
         elif mine:conditions.append('(t.requester_id=%s OR t.recipient_id=%s)');args.extend([player,player])
         else:conditions.append("t.status='accepted'")
+        if not admin and not identity:conditions.append("t.status<>'completed'")
         if shikigami_id:
             conditions.append('EXISTS(SELECT 1 FROM onmyoji_shards.trade_items ti WHERE ti.trade_id=t.id AND ti.shikigami_id=%s)');args.append(account_id(shikigami_id))
         with self.store.connection() as c:
             rows=c.execute('''SELECT t.id::text,t.status,t.requester_id::text,t.recipient_id::text,
              p.display_name,q.display_name,a.nickname,b.nickname,t.requester_confirmed,t.recipient_confirmed,t.created_at,
              t.requester_account::text,t.recipient_account::text,
-             (SELECT o.status FROM onmyoji_shards.trade_outbox o WHERE o.trade_id=t.id ORDER BY o.id DESC LIMIT 1)
+             (SELECT o.status FROM onmyoji_shards.trade_outbox o WHERE o.trade_id=t.id ORDER BY o.id DESC LIMIT 1),
+             a.server_name,b.server_name,t.updated_at
              FROM onmyoji_shards.trades t JOIN onmyoji_shards.players p ON p.id=t.requester_id
              JOIN onmyoji_shards.players q ON q.id=t.recipient_id JOIN onmyoji_shards.game_accounts a ON a.id=t.requester_account
-             JOIN onmyoji_shards.game_accounts b ON b.id=t.recipient_account WHERE '''+' AND '.join(conditions)+" ORDER BY CASE WHEN t.status IN ('pending','accepted') THEN 0 ELSE 1 END,t.created_at DESC LIMIT 200",args).fetchall()
+             JOIN onmyoji_shards.game_accounts b ON b.id=t.recipient_account WHERE '''+' AND '.join(conditions)+
+             " ORDER BY CASE WHEN t.status IN ('pending','accepted') THEN 0 ELSE 1 END,t.created_at DESC,t.id DESC LIMIT %s OFFSET %s",
+             args+[41 if record_status else 200,(page-1)*40 if record_status else 0]).fetchall()
             result=[]
             for r in rows:
                 involved=player in (r[2],r[3])
-                if identity and not involved and r[1]!='accepted':raise DrawError('没有权限查看此申请。',403)
+                if r[1]=='completed' and not admin:raise DrawError('只有 Admin 可以查看已完成的交换记录。',403)
+                if identity and not involved and r[1]!='accepted' and not (admin and r[1]=='completed'):raise DrawError('没有权限查看此申请。',403)
                 result.append(dict(id=r[0],status=r[1],requester_name=r[4],recipient_name=r[5],requester_account_name=r[6],recipient_account_name=r[7],
                  requester_confirmed=r[8],recipient_confirmed=r[9],created_at=r[10].isoformat(),
+                 requester_server=r[14],recipient_server=r[15],updated_at=r[16].isoformat(),
                  notification_status=r[13] if involved else None,
                  my_side='requester' if player==r[2] else 'recipient' if player==r[3] else None,
                  requester_account=r[11],recipient_account=r[12],items=[dict(direction=i[0],shikigami_id=i[1],quantity=i[2],name=i[3]) for i in self._items(c,r[0])]))

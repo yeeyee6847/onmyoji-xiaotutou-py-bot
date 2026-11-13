@@ -2,7 +2,9 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import secrets
 import unittest
+from types import SimpleNamespace
 
+from app import create_app
 from lottery import DrawError
 from shards.accounts import GameAccounts
 from shards.management import FragmentManagement
@@ -103,6 +105,30 @@ class TradeChecks(unittest.TestCase):
         with self.assertRaises(DrawError):self.service.action(self.players[1],second,'accept')
         self.assertEqual(self.c.execute('SELECT count(*) FROM onmyoji_shards.trade_reservations WHERE trade_id=%s',(second,)).fetchone()[0],0)
         self.assertEqual(self.service.listing(self.players[0],identity=second)[0]['status'],'pending')
+
+    def test_completed_records_are_admin_only_across_endpoints(self):
+        trade=self.create();self.service.action(self.players[1],trade,'accept')
+        user=dict(id=self.players[2],role='user',display_name='Observer',password_set=True)
+        app=create_app(auth_service=SimpleNamespace(current=lambda token:user),game_accounts=GameAccounts(SavepointStore(self.c)))
+        client=app.test_client()
+        self.assertEqual(client.get('/trade-records').status_code,200)
+        self.assertNotIn('value="completed"',client.get('/trade-records').get_data(as_text=True))
+        self.assertIn(trade,[r['id'] for r in client.get('/api/trade-records').json['items']])
+        self.assertEqual(client.get('/api/trade-records?status=completed&admin=1').status_code,403)
+        self.assertEqual(client.get('/api/trade-records?page=bad').status_code,400)
+        self.assertEqual(client.get('/api/trade-records?page=0').status_code,400)
+        self.assertEqual(client.get('/api/trade-records?status=pending').status_code,400)
+        self.service.action(self.players[0],trade,'confirm');self.service.action(self.players[1],trade,'confirm')
+        self.assertNotIn(trade,[r['id'] for r in client.get('/api/trade-records').json['items']])
+        user['id']=self.players[0]
+        self.assertNotIn(trade,[r['id'] for r in client.get('/api/trades?mine=1').json])
+        self.assertEqual(client.get('/api/trades?id='+trade+'&admin=1').status_code,403)
+        user.update(id=self.players[2],role='admin')
+        self.assertIn('value="completed"',client.get('/trade-records').get_data(as_text=True))
+        self.assertIn(trade,[r['id'] for r in client.get('/api/trade-records?status=completed').json['items']])
+        self.assertEqual(client.get('/api/trades?id='+trade).json[0]['status'],'completed')
+        user['role']='user'
+        self.assertEqual(client.get('/api/trade-records?status=completed').status_code,403)
 
     def test_own_accounts_and_malformed_quantities_rejected(self):
         with self.assertRaises(DrawError):self.service.create(self.players[1],dict(game_account_id=self.a['id'],other_account_id=self.b['id'],items=[]))
