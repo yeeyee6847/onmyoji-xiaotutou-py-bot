@@ -25,8 +25,7 @@ def register_auth(app, service):
         session['auth_token'] = token
         # A seven-day server session, also bounded by browser cookie lifetime.
         session.permanent = True
-        user = service.current(token)
-        return jsonify(redirect='/shards' if user and user['password_set'] else '/account')
+        return jsonify(redirect='/shards')
 
     def payload():
         value = request.get_json()

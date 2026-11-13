@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS onmyoji_shards.game_accounts (
 );
 CREATE INDEX IF NOT EXISTS accounts_player_idx
     ON onmyoji_shards.game_accounts (player_id);
+CREATE UNIQUE INDEX IF NOT EXISTS game_accounts_nickname_unique
+    ON onmyoji_shards.game_accounts (lower(btrim(nickname)));
 CREATE UNIQUE INDEX IF NOT EXISTS game_account_identity_unique
     ON onmyoji_shards.game_accounts (region, server_name, platform, game_uid)
     WHERE game_uid IS NOT NULL;

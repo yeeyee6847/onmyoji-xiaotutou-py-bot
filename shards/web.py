@@ -68,6 +68,7 @@ def create_blueprint(root=None, inspector=None, catalog=None):
         user = None if mock_catalog else current_app.extensions['current_user']()
         return jsonify(role=user['role'] if user else session.get('shards_role', 'user'), mock=mock_catalog, database_written=False,
                        authenticated=bool(user), display_name=user['display_name'] if user else None,
+                       password_set=user.get('password_set',True) if user else True,
                        catalog_source='mock' if mock_catalog else 'supabase', catalog_writable=mock_catalog or bool(user and user['role']=='admin'),
                        ocr_installed=bool(importlib.util.find_spec('rapidocr') and importlib.util.find_spec('onnxruntime')))
 

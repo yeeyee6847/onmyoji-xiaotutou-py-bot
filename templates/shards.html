@@ -16,6 +16,7 @@
 </aside>
 <div class="app-shell"><header class="app-header"><div class="crumb">碎片交換 <span>/</span><strong id="crumb-current">匯入碎片</strong></div><a id="account-link" href="/account">登入 / 我的帳號</a><div class="role-control"><span>演示身分</span><select id="role-select" aria-label="切換演示身分"><option value="user">一般用戶</option><option value="admin">Admin</option></select><span class="user-circle" id="user-circle">友</span></div></header>
 <main>
+  <div class="catalog-notice" id="password-reminder" hidden>你尚未設定網站密碼，仍可正常使用 Discord 連結登入。<a href="/account">設定密碼</a>可讓下次登入更方便。<button class="subtle" id="password-reminder-close" type="button">稍後再說</button></div>
   <div class="mock-banner"><span class="mock-pill">MOCK</span><p>先試著結緣。圖鑑使用本機 Mock 資料，這裡的所有操作都<strong>不會寫入 Supabase</strong>。身分切換僅供原型演示。</p><span class="banner-flower">✳</span></div>
   <p class="catalog-notice" id="login-notice" hidden>匯入與核對碎片需要登入。<a href="/login">使用網站密碼登入</a>，或到 Discord 對 Bot 輸入 /login。</p>
   <section class="tab-panel" id="panel-upload"><div class="page-head"><div><p class="eyebrow">A LITTLE PIECE, A NEW CONNECTION</p><h1>讓每一片，都有歸處<span>✳</span></h1><p class="lead">上傳你的碎片長圖，把平安京的收藏，整理成一份清楚的清單。</p></div><span class="chapter">CHAPTER <b>01</b></span></div>

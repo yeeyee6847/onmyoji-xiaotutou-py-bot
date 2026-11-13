@@ -50,6 +50,6 @@ if (loginToken) {
   }).catch(error => message(error.message));
 } else {
   api('/api/auth/me').then(({user}) => {
-    if (user) location.replace(user.password_set ? '/shards' : '/account');
+    if (user) location.replace('/shards');
   }).catch(error => message(error.message));
 }

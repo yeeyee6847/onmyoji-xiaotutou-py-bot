@@ -41,6 +41,9 @@ class GameAccountChecks(unittest.TestCase):
         self.assertEqual(self.service.owned(self.player,second['id'])['nickname'],'Second')
         with self.assertRaises(DrawError): self.service.owned(self.other,first['id'])
         with self.assertRaises(DrawError): self.service.create(self.player,dict(nickname='First'))
+        with self.assertRaises(DrawError) as duplicate:
+            self.service.create(self.other,dict(nickname=' first ',server_name='Different server'))
+        self.assertEqual(duplicate.exception.status,409)
         with self.assertRaises(DrawError): self.service.create(self.player,dict(nickname=' '))
         with self.assertRaises(DrawError): self.service.owned(self.player,'bad-uuid')
 

@@ -116,8 +116,8 @@ class AuthChecks(unittest.TestCase):
         self.assertEqual(client.post('/api/auth/discord-link', json={'token': token}).status_code, 403)
         response = client.post('/api/auth/discord-link', json={'token': token}, headers={'X-CSRF-Token': csrf})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json['redirect'], '/account')
-        self.assertEqual(client.get('/shards').headers['Location'], '/account')
+        self.assertEqual(response.json['redirect'], '/shards')
+        self.assertEqual(client.get('/shards').status_code, 200)
         self.assertEqual(client.get('/api/auth/me').json['user']['discord_user_id'], self.uid)
         self.assertEqual(client.post('/api/auth/password', json={'password':'a-long-test-password-123', 'confirm_password':'a-long-test-password-123'}, headers={'X-CSRF-Token':csrf}).status_code, 403)
         with client.session_transaction() as state:
@@ -143,6 +143,23 @@ class AuthChecks(unittest.TestCase):
         for bad in ('//evil.test', 'https://good.test@evil.test/path', 'https://good.test/?token=x', 'javascript:alert(1)'):
             with self.assertRaises(DrawError):
                 website_origin(bad)
+
+    def test_discord_login_syncs_display_name_without_changing_identity_or_role(self):
+        _,token=self.link();old=self.auth.consume_link(token);identity=self.auth.current(old)['id']
+        self.conn.execute("UPDATE onmyoji_shards.players SET role='admin' WHERE id=%s",(identity,))
+        self.auth.issue_link(self.uid,'Current Discord name','http://127.0.0.1:5000')
+        user=self.auth.current(old)
+        self.assertEqual(user['display_name'],'Current Discord name');self.assertEqual(user['id'],identity)
+        self.assertEqual(user['role'],'admin')
+
+    def test_optional_first_password_can_be_set_later_with_eight_characters(self):
+        _,token=self.link();login=self.auth.consume_link(token)
+        self.conn.execute("UPDATE onmyoji_shards.web_sessions SET created_at=now()-interval '1 day' WHERE token_hash=%s",(digest(login),))
+        self.assertFalse(self.auth.current(login)['password_set']);self.assertTrue(self.auth.current(login)['can_set_password'])
+        with self.assertRaises(DrawError):self.auth.set_password(login,'1234567')
+        self.auth.set_password(login,'12345678')
+        self.assertIsNotNone(self.auth.current(self.auth.login_password(self.uid,'12345678')))
+        with self.assertRaises(DrawError):self.auth.set_password(login,'87654321')
 
 
 class ConcurrentConsumptionCheck(unittest.TestCase):

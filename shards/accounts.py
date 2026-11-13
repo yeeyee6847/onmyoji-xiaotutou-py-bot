@@ -38,15 +38,15 @@ class GameAccounts:
             raise DrawError('服务器名称最多 80 个字符。')
         name, server = name.strip(), server.strip() or '未指定'
         with self.store.connection() as conn:
-            # Serializes duplicate checks for one owner without trusting client-provided player IDs.
+            # Names are globally unique, including across owners and servers.
+            conn.execute('SELECT pg_advisory_xact_lock(hashtextextended(lower(%s),0))',('game-account:'+name,))
             owner = conn.execute('SELECT id FROM onmyoji_shards.players WHERE id=%s AND is_active FOR UPDATE', (player_id,)).fetchone()
             if not owner:
                 raise DrawError('账号已失效，请重新登录。', 401)
             exists = conn.execute('''SELECT 1 FROM onmyoji_shards.game_accounts
-                WHERE player_id=%s AND is_active AND lower(nickname)=lower(%s) AND lower(server_name)=lower(%s)''',
-                (player_id, name, server)).fetchone()
+                WHERE lower(btrim(nickname))=lower(%s)''', (name,)).fetchone()
             if exists:
-                raise DrawError('这个名字和服务器的账号已经添加过了。', 409)
+                raise DrawError('这个游戏账号名字已被使用，请换一个名字。', 409)
             row = conn.execute('''INSERT INTO onmyoji_shards.game_accounts(player_id,nickname,server_name)
                 VALUES (%s,%s,%s) RETURNING id,nickname,server_name''', (player_id, name, server)).fetchone()
         return record(row)

@@ -49,10 +49,6 @@ def create_app(store=None, shard_options=None, auth_service=None, game_accounts=
                 if request.path.startswith('/api/'):
                     return jsonify(error='请先登录。', redirect='/login'), 401
                 return redirect('/login')
-            if not user['password_set'] and request.path not in ('/account', '/api/auth/password', '/api/auth/logout'):
-                if request.path.startswith('/api/'):
-                    return jsonify(error='请先设置网站密码。', redirect='/account'), 403
-                return redirect('/account')
         if request.method in ("POST", "PUT", "PATCH", "DELETE"):
             if not secrets.compare_digest(request.headers.get("X-CSRF-Token", ""), session["csrf"]):
                 raise DrawError("页面验证已失效，请刷新页面后重试。", 403)

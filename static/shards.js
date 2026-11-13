@@ -45,6 +45,7 @@ function tab(name) {
 }
 $$('[data-tab]').forEach(button => button.addEventListener('click', () => tab(button.dataset.tab)));
 $('#return-upload').addEventListener('click', () => tab('upload'));
+$('#password-reminder-close').addEventListener('click',()=>$('#password-reminder').hidden=true);
 function setRole() {
   $('#role-select').value = role; $('#user-circle').textContent = role === 'admin' ? '管' : '友';
   $('#add-shikigami').hidden = role !== 'admin';
@@ -333,6 +334,7 @@ async function init() {
     if (!mockMode) {
       $('#account-link').textContent = info.authenticated ? `${info.display_name} · 我的帳號` : '登入 / 我的帳號';
       $('#login-notice').hidden = info.authenticated;
+      $('#password-reminder').hidden=info.password_set!==false;
       $('.mock-pill').textContent = 'SUPABASE';
       $('.mock-banner p').textContent = '式神圖鑑與遊戲帳號已連接 Supabase。選擇遊戲帳號上傳碎片，逐項核對後再保存；演示結果不會寫入帳號。';
       $('#panel-catalog .small-note').textContent = '資料來源：onmyoji_shards.shikigami。圖片使用 image_path 的 HTTPS 網址；未提供圖片會顯示文字佔位。';

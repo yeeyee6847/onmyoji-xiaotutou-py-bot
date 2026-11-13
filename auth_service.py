@@ -71,6 +71,7 @@ class AuthService:
                 player_id, active = identity
                 if not active:
                     raise DrawError('此账号已停用。', 403)
+                conn.execute('UPDATE onmyoji_shards.players SET display_name=%s WHERE id=%s',(name,player_id))
             conn.execute('''UPDATE onmyoji_shards.login_tokens SET used_at=now()
                 WHERE player_id=%s AND used_at IS NULL''', (player_id,))
             conn.execute('''INSERT INTO onmyoji_shards.login_tokens(token_hash,player_id,expires_at)
@@ -102,7 +103,8 @@ class AuthService:
         with self.store.connection() as conn:
             row = conn.execute('''SELECT p.id::text,p.display_name,p.role,i.external_subject,
                 EXISTS(SELECT 1 FROM onmyoji_shards.password_credentials c WHERE c.player_id=p.id),
-                (s.auth_method='discord_link' AND s.created_at>now()-interval '15 minutes')
+                (NOT EXISTS(SELECT 1 FROM onmyoji_shards.password_credentials c WHERE c.player_id=p.id)
+                 OR (s.auth_method='discord_link' AND s.created_at>now()-interval '15 minutes'))
                 FROM onmyoji_shards.web_sessions s
                 JOIN onmyoji_shards.players p ON p.id=s.player_id
                 JOIN onmyoji_shards.player_identities i ON i.player_id=p.id AND i.provider='discord'
@@ -147,17 +149,22 @@ class AuthService:
     def set_password(self, token, password):
         if not valid_token(token):
             raise DrawError('请先通过 Discord /login 登录。', 401)
-        if not isinstance(password, str) or not 12 <= len(password) <= 128:
-            raise DrawError('密码长度需要 12–128 个字符。')
+        if not isinstance(password, str) or not 8 <= len(password) <= 128:
+            raise DrawError('密码长度需要 8–128 个字符。')
         hashed = generate_password_hash(password, method='scrypt')
         with self.store.connection() as conn:
             row = conn.execute('''SELECT p.id FROM onmyoji_shards.web_sessions s
                 JOIN onmyoji_shards.players p ON p.id=s.player_id
                 WHERE s.token_hash=%s AND s.expires_at>now() AND p.is_active
-                  AND s.auth_method='discord_link' AND s.created_at>now()-interval '15 minutes'
                 FOR UPDATE OF p''', (digest(token),)).fetchone()
             if not row:
-                raise DrawError('设置或重设密码需要最近 15 分钟内通过 Discord /login 登录。', 403)
+                raise DrawError('请先登录。',401)
+            # Re-read after the player lock, so a concurrent first setup cannot bypass reset checks.
+            allowed=conn.execute('''SELECT (NOT EXISTS(SELECT 1 FROM onmyoji_shards.password_credentials c WHERE c.player_id=s.player_id)
+              OR (s.auth_method='discord_link' AND s.created_at>now()-interval '15 minutes'))
+              FROM onmyoji_shards.web_sessions s WHERE s.token_hash=%s AND s.expires_at>now()''',(digest(token),)).fetchone()
+            if not allowed or not allowed[0]:
+                raise DrawError('重设已有密码需要最近 15 分钟内通过 Discord /login 登录。',403)
             conn.execute('''INSERT INTO onmyoji_shards.password_credentials(player_id,password_hash)
                 VALUES (%s,%s) ON CONFLICT(player_id) DO UPDATE
                 SET password_hash=EXCLUDED.password_hash,updated_at=now()''', (row[0], hashed))
