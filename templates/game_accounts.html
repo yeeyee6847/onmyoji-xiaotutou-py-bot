@@ -2,11 +2,11 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="csrf-token" content="{{ csrf }}"><title>我的遊戲帳號 · 結緣帖</title>
   <link rel="stylesheet" href="/static/account.css"><script src="/static/game-accounts.js" defer></script>
-</head><body><main class="account-shell">
-  <a class="brand" href="/shards">結緣帖<span>我的遊戲帳號</span></a>
+<link rel="stylesheet" href="/static/onmyoji.css"></head><body><main class="account-shell">
+  <a class="brand" href="/shards" {% if request.path == "/shards" %}aria-current="page"{% endif %}>結緣帖<span>我的遊戲帳號</span></a>
   <section class="account-card"><h1>管理你的遊戲帳號</h1>
     <p>一個 Discord 帳號可以綁定多個遊戲帳號。選擇帳號，查看已保存的碎片清單。</p>
     {% include '_game_accounts.html' %}
     <h2>已保存的碎片</h2><p id="account-fragments-note">請先選擇遊戲帳號。</p><ul id="account-fragments"></ul>
-  </section><a class="back" href="/shards">上傳碎片 →</a>
+  </section><a class="back" href="/shards" {% if request.path == "/shards" %}aria-current="page"{% endif %}>上傳碎片 →</a>
 </main></body></html>

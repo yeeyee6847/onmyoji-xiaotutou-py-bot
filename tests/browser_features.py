@@ -25,7 +25,7 @@ def main():
     with PostgresStore().connection() as c:
         player=str(c.execute('INSERT INTO onmyoji_shards.players(display_name) VALUES (%s) RETURNING id',(prefix,)).fetchone()[0])
     account=GameAccounts().create(player,dict(nickname='Main UI account'))
-    catalog=PostgresCatalog().list();item=catalog[0]
+    catalog=PostgresCatalog().list();item=next((r for r in catalog if r.get('image')),catalog[0])
     image=Image.fromarray(np.random.default_rng(18).integers(0,256,(70,70,3),dtype=np.uint8))
     job=str(uuid.uuid4());SampleLibrary().capture(player,job,[dict(index=1,crop=image_data(image),portrait=image_data(image),raw_name=item['name'],shikigami_id=item['id'])])
     with PostgresStore().connection() as c:sample=str(c.execute('SELECT id FROM onmyoji_shards.portrait_samples WHERE job_id=%s',(job,)).fetchone()[0])
@@ -58,6 +58,15 @@ def main():
             page.wait_for_function("() => document.querySelector('#workspace-rows tr td:nth-child(3)')?.textContent === '2'")
             page.locator('.manual-quantity').fill('3');page.locator('#manual-save').click()
             page.wait_for_function("() => document.querySelector('#workspace-rows tr td:nth-child(3)')?.textContent === '3'")
+            if item.get('image'):
+                assert page.locator('#workspace-rows .fragment-portrait img').get_attribute('src')==item['image']
+            Path('artifacts').mkdir(exist_ok=True)
+            for width in (360,390,768,1440):
+                page.set_viewport_size(dict(width=width,height=1050 if width>600 else 844))
+                page.evaluate('window.scrollTo(0,0)')
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),('inventory',width)
+                page.screenshot(path=f'artifacts/onmyoji-inventory-{width}.png',full_page=True)
+            page.set_viewport_size(dict(width=1440,height=1050))
             page.once('dialog',lambda dialog:dialog.dismiss())
             page.locator('#workspace-rows').get_by_role('button',name='刪除',exact=True).click()
             assert page.locator('#workspace-rows tr').count()==1
@@ -74,6 +83,15 @@ def main():
             owner_link=page.locator('.owners-content a').filter(has_text='Main UI account')
             assert 'other_account_id='+account['id'] in owner_link.get_attribute('href')
             assert 'shikigami_id='+item['id'] in owner_link.get_attribute('href')
+            assert page.locator('.detail-stats>div').count()==3
+            assert page.locator('.owner-card').count()>=1
+            if item.get('image'):assert page.locator('.detail-portrait img').get_attribute('src')==item['image']
+            for width in (360,390,768,1440):
+                page.set_viewport_size(dict(width=width,height=1050 if width>600 else 844))
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),('detail',width)
+                assert page.locator('#fragment-owners-dialog').evaluate('(e)=>e.scrollWidth<=e.clientWidth'),('dialog',width)
+                page.screenshot(path=f'artifacts/onmyoji-detail-{width}.png')
+            page.set_viewport_size(dict(width=1440,height=1050))
             page.locator('#fragment-owners-dialog button').click()
             user['role']='admin';page.reload();page.wait_for_selector('#add-shikigami:visible')
             page.locator('#add-shikigami').click();page.wait_for_selector('#catalog-dialog[open]')

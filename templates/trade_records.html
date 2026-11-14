@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>全站交換紀錄 · 結緣帖</title><link rel="stylesheet" href="/static/account.css"><link rel="stylesheet" href="/static/workspace.css"><script src="/static/trade-records.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>全站交換紀錄 · 結緣帖</title><link rel="stylesheet" href="/static/account.css"><link rel="stylesheet" href="/static/workspace.css"><script src="/static/trade-records.js" defer></script><link rel="stylesheet" href="/static/onmyoji.css"></head>
 <body><main class="workspace">
-<a class="brand" href="/shards">結緣帖<span>全站交換紀錄</span></a>
-<nav><a href="/shards">式神圖鑑</a><a href="/my-fragments">我的碎片</a><a href="/search-fragments">搜索碎片</a><a href="/trades">交換申請</a><a href="/account">我的帳號</a></nav>
+<a class="brand" href="/shards" {% if request.path == "/shards" %}aria-current="page"{% endif %}>結緣帖<span>全站交換紀錄</span></a>
+<nav><a href="/shards" {% if request.path == "/shards" %}aria-current="page"{% endif %}>式神圖鑑</a><a href="/my-fragments" {% if request.path == "/my-fragments" %}aria-current="page"{% endif %}>我的碎片</a><a href="/search-fragments" {% if request.path == "/search-fragments" %}aria-current="page"{% endif %}>搜索碎片</a><a href="/trades" {% if request.path == "/trades" %}aria-current="page"{% endif %}>交換申請</a><a href="/account">我的帳號</a></nav>
 <h1>全站交換紀錄</h1>
 <p class="notice">查看所有玩家已接受、正在進行的交換。已完成的交換紀錄僅 Admin 可以查看。</p>
 <section><div class="tools"><label>交換狀態<select id="records-status"><option value="accepted">正在交換</option>{% if admin %}<option value="completed">已完成交換（Admin）</option>{% endif %}</select></label><button id="records-refresh">重新整理</button></div>

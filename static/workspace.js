@@ -24,11 +24,18 @@
     const rows=await api('/api/fragments?'+params);
     if(requestId!==revision)return;
     const filtered=rows.filter(r=>!$('#workspace-rarity').value||r.rarity===$('#workspace-rarity').value);
+    $('#workspace-count').textContent=`${filtered.length} 筆記錄 · 可提供 ${filtered.filter(r=>r.target==='offers').reduce((n,r)=>n+(r.available??r.quantity),0)} 片`;
     $('#workspace-empty').hidden=filtered.length>0;
     $('#workspace-rows').replaceChildren(...filtered.map(row=>{
       const quantityText=mode==='mine'&&row.reserved?`${row.quantity}（可用 ${row.available}／預留 ${row.reserved}）`:String(row.quantity);
-      const tr=node('tr');for(const text of [row.name,row.target==='wants'?'想要':'可提供',quantityText,row.player_name,`${row.nickname} · ${row.server_name}`])tr.append(node('td',text));
+      const tr=node('tr');
+      const identity=node('td');identity.dataset.label='式神';const figure=node('div');figure.className='fragment-identity';
+      const item=catalog.find(r=>r.id===row.shikigami_id),portrait=node('span');portrait.className='fragment-portrait';
+      if(item?.image){const img=node('img');img.src=item.image;img.alt=row.name;img.loading='lazy';img.onerror=()=>{img.remove();portrait.textContent=row.name.slice(0,1);};portrait.append(img);}else portrait.textContent=row.name.slice(0,1);
+      const title=node('div');title.append(node('strong',row.name),node('small',row.rarity));figure.append(portrait,title);identity.append(figure);tr.append(identity);
+      for(const [label,text] of [['清單',row.target==='wants'?'想要':'可提供'],['碎片數量',quantityText],['玩家',row.player_name],['遊戲帳號',`${row.nickname} · ${row.server_name}`]]){const cell=node('td',text);cell.dataset.label=label;tr.append(cell);}
       const action=node('td');
+      action.dataset.label='管理碎片';action.className='fragment-actions';
       if(mode==='mine'){
         const input=node('input');input.type='number';input.min='0';input.max='99999';input.value=row.quantity;input.setAttribute('aria-label',`${row.name}數量`);
         const save=node('button','覆蓋儲存');save.onclick=async()=>{
@@ -60,13 +67,18 @@
   }
   async function init(){
     const [items,me,accounts]=await Promise.all([api('/api/shards/catalog'),api('/api/auth/me'),api('/api/game-accounts')]);catalog=items;
-    $('#admin-nav').hidden=me.user.role!=='admin';$('#workspace-title').textContent={mine:'我的碎片與人工匯入',search:'搜索碎片',samples:'头像參考庫審核'}[mode];
+    $('#admin-nav').hidden=me.user.role!=='admin';$('#workspace-title').textContent={mine:'我的碎片',search:'尋找有緣的碎片',samples:'头像參考庫審核'}[mode];
     if(mode==='samples'){
       $('#samples-section').hidden=false;
       $('#sample-status').onchange=()=>{page=1;samples().catch(e=>message(e.message));};$('#samples-refresh').onclick=()=>samples().catch(e=>message(e.message));
       $('#samples-prev').onclick=()=>{page--;samples().catch(e=>message(e.message));};$('#samples-next').onclick=()=>{page++;samples().catch(e=>message(e.message));};await samples();return;
     }
     $('#fragment-controls').hidden=$('#fragment-results').hidden=false;$('#account-control').hidden=mode!=='mine';$('#manual-section').hidden=mode!=='mine';
+    const extra=node('details');extra.id='fragment-extra-filters';extra.append(node('summary','更多篩選 · Rarity／清單／伺服器'));
+    const extraFields=node('div');extraFields.className='tools';
+    for(const id of ['workspace-rarity','workspace-target','workspace-server'])extraFields.append($('#'+id).closest('label'));
+    extra.append(extraFields);$('#fragment-controls .tools').after(extra);
+    const wide=window.matchMedia('(min-width: 601px)');extra.open=wide.matches;wide.addEventListener('change',event=>extra.open=event.matches);
     for(const r of catalog){const o=node('option',`${r.name} · ${r.rarity}`);o.value=r.id;$('#workspace-shikigami').append(o);}ShikigamiPicker.attach($('#workspace-shikigami'),catalog);
     for(const r of accounts){const o=node('option',`${r.nickname} · ${r.server_name}`);o.value=r.id;$('#workspace-account').append(o);}
     if(mode==='mine'){

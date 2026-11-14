@@ -83,7 +83,7 @@ function renderCatalog() {
     if(!mockMode)avatar.addEventListener('click',()=>showFragmentOwners(item));
     if (item.image) { const img = node('img'); img.src = item.image; img.alt = item.name; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; avatar.append(img); }
     else avatar.append(node('span', '', item.name.slice(0, 1)), node('small', '', '肖像待補'));
-    card.append(head, avatar, node('h3', '', item.name), node('p', 'catalog-aliases', item.aliases.length ? `識別別名：${item.aliases.join('、')}` : '使用正式名字辨識'));
+    card.append(head, avatar, node('h3', '', item.name), node('p', 'catalog-aliases', item.name_simplified&&item.name_simplified!==item.name?item.name_simplified:'點擊查看碎片'));
     if(!mockMode){const totals=fragmentTotals[item.id]||{};card.append(node('p','catalog-aliases',`可提供 ${totals.offers||0} · 想要 ${totals.wants||0}`));if(totals.offers_reserved)card.append(node('p','catalog-aliases',`交換中已預留 ${totals.offers_reserved}`));}
     if (catalogWritable && role === 'admin') {
       const actions = node('div', 'catalog-actions'), edit = node('button', 'subtle', '編輯資料 ↗'), remove = node('button', 'subtle delete-link', '刪除');
@@ -311,24 +311,43 @@ $('#save-import-button').addEventListener('click', async () => {
 });
 async function showFragmentOwners(item){
   let dialog=$('#fragment-owners-dialog');
-  if(!dialog){dialog=node('dialog');dialog.id='fragment-owners-dialog';const close=node('button','關閉');close.type='button';close.onclick=()=>dialog.close();dialog.append(close,node('h2'),node('div','owners-content'));document.body.append(dialog);}
-  $('h2',dialog).textContent=item.name;const content=$('.owners-content',dialog);content.textContent='載入中…';dialog.showModal();
+  if(!dialog){dialog=node('dialog','shikigami-detail');dialog.id='fragment-owners-dialog';dialog.setAttribute('aria-labelledby','detail-name');document.body.append(dialog);}
+  dialog.replaceChildren();
+  const close=node('button','detail-close','關閉 ×');close.type='button';close.onclick=()=>dialog.close();
+  const hero=node('header','detail-hero'),portrait=node('div','detail-portrait');
+  if(item.image){const img=node('img');img.src=item.image;img.alt=item.name;img.onerror=()=>{img.remove();portrait.textContent=item.name.slice(0,1);};portrait.append(img);}else portrait.textContent=item.name.slice(0,1);
+  const intro=node('div','detail-intro'),name=node('h2','',item.name);name.id='detail-name';
+  intro.append(node('span',`rarity-badge rarity-${item.rarity}`,rarityLabels[item.rarity]),name,node('p','',item.name_simplified&&item.name_simplified!==item.name?item.name_simplified:'式神碎片 · 結緣之契'));
+  hero.append(portrait,intro);const content=node('div','owners-content');content.setAttribute('aria-live','polite');content.append(node('p','detail-loading','正在翻閱碎片帳簿…'));
+  dialog.append(close,hero,content);if(!dialog.open)dialog.showModal();
   try{
-    const rows=await api('/api/fragments?shikigami_id='+item.id);content.replaceChildren();content.append(node('p','','點擊玩家／遊戲帳號，可帶入帳號與式神提出交換。'));
+    const rows=await api('/api/fragments?shikigami_id='+item.id);
+    if(!dialog.open||$('.owners-content',dialog)!==content)return;
+    content.replaceChildren();const stats=node('div','detail-stats');
+    const totals=fragmentTotals[item.id]||{};
+    for(const [label,value] of [['可提供',totals.offers||0],['想要',totals.wants||0],['交換預留',totals.offers_reserved||0]]){const stat=node('div');stat.append(node('strong','',String(value)),node('span','',label));stats.append(stat);}
+    content.append(stats,node('p','detail-hint','找到有緣的玩家，點擊帳號即可提出交換。'));
+    const groups=node('div','detail-groups');
     for(const [target,title] of [['offers','誰可提供'],['wants','誰需要']]){
-      content.append(node('h3','',title));const list=node('ul');const entries=rows.filter(r=>r.target===target);
+      const group=node('section',`owner-group owner-${target}`),entries=rows.filter(r=>r.target===target),heading=node('div','owner-heading');
+      heading.append(node('h3','',title),node('span','',`${entries.length} 個帳號`));group.append(heading);const list=node('div','owner-list');
       for(const r of entries){
-        const entry=node('li');const person=node('a','',`${r.player_name} · ${r.nickname}`);
+        const entry=node('article','owner-card'),person=node('a','owner-person');
         person.href='/trades?'+new URLSearchParams({other_account_id:r.game_account_id,shikigami_id:item.id,direction:target==='offers'?'receive':'give'});
-        entry.append(person,document.createTextNode(` · ${r.server_name}：${r.quantity} 片 `));
+        const identity=node('div','owner-identity');identity.append(node('strong','',r.nickname),node('small','',`${r.player_name} · ${r.server_name}`));
+        const quantity=node('span','owner-quantity');quantity.append(node('b','',String(r.quantity)),node('small','','片'));
+        person.append(node('span','owner-seal',r.player_name.slice(0,1)),identity,quantity,node('span','owner-arrow','↗'));entry.append(person);
         list.append(entry);
       }
-      if(!entries.length)list.append(node('li','','尚無記錄'));content.append(list);
+      if(!entries.length)list.append(node('p','detail-empty',target==='offers'?'暫時沒有人提供，先記下你的需求吧。':'尚無需求記錄，或許你的收藏正等著有緣人。'));group.append(list);groups.append(group);
     }
-    const link=node('a','','到搜索頁查看');link.href='/search-fragments?shikigami_id='+item.id;content.append(link);
-    const trades=await api('/api/trades?shikigami_id='+item.id);content.append(node('h3','','誰正在交換'));
-    const ongoing=node('ul');for(const trade of trades)ongoing.append(node('li','',`${trade.requester_name} · ${trade.requester_account_name} ↔ ${trade.recipient_name} · ${trade.recipient_account_name}`));
-    if(!trades.length)ongoing.append(node('li','','目前沒有交換中記錄'));content.append(ongoing);
+    content.append(groups);const ongoingSection=node('section','detail-ongoing');ongoingSection.append(node('h3','','正在結緣'));content.append(ongoingSection);
+    const link=node('a','detail-search','搜索此式神的碎片 ↗');link.href='/search-fragments?shikigami_id='+item.id;content.append(link);
+    try{
+      const trades=await api('/api/trades?shikigami_id='+item.id);
+      for(const trade of trades){const card=node('div','ongoing-pair');card.append(node('span','',`${trade.requester_name} · ${trade.requester_account_name}`),node('b','','⇄'),node('span','',`${trade.recipient_name} · ${trade.recipient_account_name}`));ongoingSection.append(card);}
+      if(!trades.length)ongoingSection.append(node('p','detail-empty','目前沒有正在進行的交換。'));
+    }catch{ongoingSection.append(node('p','detail-empty','交換記錄暫時無法載入，請稍後再試。'));}
   }catch(error){content.textContent=error.message;}
 }
 async function init() {
@@ -340,9 +359,9 @@ async function init() {
       $('#account-link').textContent = info.authenticated ? `${info.display_name} · 我的帳號` : '登入 / 我的帳號';
       $('#login-notice').hidden = info.authenticated;
       $('#password-reminder').hidden=info.password_set!==false;
-      $('.mock-pill').textContent = 'SUPABASE';
-      $('.mock-banner p').textContent = '式神圖鑑與遊戲帳號已連接 Supabase。選擇遊戲帳號上傳碎片，逐項核對後再保存；演示結果不會寫入帳號。';
-      $('#panel-catalog .small-note').textContent = '資料來源：onmyoji_shards.shikigami。圖片使用 image_path 的 HTTPS 網址；未提供圖片會顯示文字佔位。';
+      $('.mock-pill').textContent = '碎片手帖';
+      $('.mock-banner p').textContent = '選擇遊戲帳號，上傳碎片長圖。核對名字與數量後，將收藏留給有緣人。';
+      $('#panel-catalog .small-note').textContent = '點擊式神肖像查看碎片持有人與需求，找到適合的玩家一起結緣。';
       $('#sample-admin-link').hidden=role!=='admin';
     }
     $('#engine-status').textContent = info.ocr_installed ? '本地 OCR 已安裝 · 首次需載入模型' : 'OpenCV 切格可用 · OCR 為可選安裝';
